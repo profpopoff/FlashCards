@@ -1,18 +1,52 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { StyleSheet, View } from "react-native";
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { colors } from "@/constants/theme";
+import { LibraryProvider, useLibrary } from "@/data/store";
 
-SplashScreen.preventAutoHideAsync();
-
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <LibraryProvider>
+      <View style={styles.shell}>
+        <View style={styles.device}>
+          <StatusBar style="dark" />
+          <RootNavigator />
+        </View>
+      </View>
+    </LibraryProvider>
   );
 }
+
+function RootNavigator() {
+  const { ready } = useLibrary();
+
+  if (!ready) {
+    return <View style={styles.loading} />;
+  }
+
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="study" />
+    </Stack>
+  );
+}
+
+const styles = StyleSheet.create({
+  shell: {
+    flex: 1,
+    alignItems: "center",
+    backgroundColor: colors.shell,
+  },
+  device: {
+    flex: 1,
+    width: "100%",
+    maxWidth: 440,
+    backgroundColor: colors.background,
+  },
+  loading: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+});
