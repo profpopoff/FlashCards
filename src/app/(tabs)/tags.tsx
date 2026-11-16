@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Screen } from "@/components/screen";
 import { colors } from "@/constants/theme";
@@ -9,7 +9,7 @@ import { useLibrary } from "@/data/store";
 import { Tag } from "@/data/types";
 
 export default function TagsScreen() {
-  const { tags, cards, addTag, renameTag } = useLibrary();
+  const { tags, cards, addTag, renameTag, deleteTag } = useLibrary();
   const [name, setName] = useState("");
   const [editing, setEditing] = useState<Tag | null>(null);
   const [draft, setDraft] = useState("");
@@ -40,6 +40,27 @@ export default function TagsScreen() {
     setEditing(null);
   }
 
+  function confirmDelete(tag: Tag) {
+    const count = counts.get(tag.id) ?? 0;
+    Alert.alert(
+      "Delete tag",
+      count > 0
+        ? `Remove “${tag.name}”? It will be unlinked from ${wordCountLabel(count)}.`
+        : `Remove “${tag.name}”?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            deleteTag(tag.id);
+            if (editing?.id === tag.id) setEditing(null);
+          },
+        },
+      ],
+    );
+  }
+
   return (
     <Screen scroll contentStyle={styles.scroll}>
       <Text style={styles.title}>Tags</Text>
@@ -60,24 +81,47 @@ export default function TagsScreen() {
           accessibilityRole="button"
           disabled={name.trim().length === 0}
           onPress={commit}
-          style={({ pressed }) => [styles.add, name.trim().length === 0 && styles.addDisabled, pressed && name.trim().length > 0 && styles.pressed]}
+          style={({ pressed }) => [
+            styles.add,
+            name.trim().length === 0 && styles.addDisabled,
+            pressed && name.trim().length > 0 && styles.pressed,
+          ]}
         >
           <Text style={styles.addLabel}>Add</Text>
         </Pressable>
       </View>
 
-      <View style={styles.list}>
-        {tags.map((tag, index) => (
-          <View key={tag.id} style={[styles.row, index < tags.length - 1 && styles.rowBorder]}>
-            <View style={[styles.dot, { backgroundColor: tag.color }]} />
-            <Text style={styles.name}>{tag.name}</Text>
-            <Text style={styles.count}>{wordCountLabel(counts.get(tag.id) ?? 0)}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Rename ${tag.name}`} onPress={() => openEditor(tag)} hitSlop={8}>
-              <Ionicons name="pencil" size={18} color="#B0ACA4" />
-            </Pressable>
-          </View>
-        ))}
-      </View>
+      {tags.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.empty}>No tags yet. Create one to organize your words.</Text>
+        </View>
+      ) : (
+        <View style={styles.list}>
+          {tags.map((tag, index) => (
+            <View key={tag.id} style={[styles.row, index < tags.length - 1 && styles.rowBorder]}>
+              <View style={[styles.dot, { backgroundColor: tag.color }]} />
+              <Text style={styles.name}>{tag.name}</Text>
+              <Text style={styles.count}>{wordCountLabel(counts.get(tag.id) ?? 0)}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Rename ${tag.name}`}
+                onPress={() => openEditor(tag)}
+                hitSlop={8}
+              >
+                <Ionicons name="pencil" size={18} color="#B0ACA4" />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${tag.name}`}
+                onPress={() => confirmDelete(tag)}
+                hitSlop={8}
+              >
+                <Ionicons name="trash-outline" size={18} color="#B0ACA4" />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      )}
 
       <Modal visible={editing !== null} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
         <Pressable style={styles.backdrop} onPress={() => setEditing(null)}>
@@ -94,6 +138,11 @@ export default function TagsScreen() {
             <Pressable accessibilityRole="button" onPress={saveRename} style={styles.save}>
               <Text style={styles.saveLabel}>Save</Text>
             </Pressable>
+            {editing ? (
+              <Pressable accessibilityRole="button" onPress={() => confirmDelete(editing)} style={styles.delete}>
+                <Text style={styles.deleteLabel}>Delete tag</Text>
+              </Pressable>
+            ) : null}
           </Pressable>
         </Pressable>
       </Modal>
@@ -154,6 +203,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
   },
+  emptyCard: {
+    marginTop: 18,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 20,
+  },
+  empty: {
+    color: colors.muted,
+    fontSize: 15,
+    lineHeight: 22,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -205,6 +265,15 @@ const styles = StyleSheet.create({
   },
   saveLabel: {
     color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  delete: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  deleteLabel: {
+    color: colors.again,
     fontSize: 16,
     fontWeight: "700",
   },

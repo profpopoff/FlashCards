@@ -16,6 +16,16 @@ export type Card = {
   tagIds: string[];
   state: CardState;
   dueAt: number;
+  /** Current review interval in days (0 while new/learning). */
+  intervalDays: number;
+  /** SM-2 ease factor; starts at 2.5, floored at 1.3. */
+  ease: number;
+  /** Successful review streak used by SM-2. */
+  repetitions: number;
+  /** Times the card has lapsed back into learning. */
+  lapses: number;
+  /** Index into learning steps while state is learning. */
+  learningStep: number;
 };
 
 export type Library = {

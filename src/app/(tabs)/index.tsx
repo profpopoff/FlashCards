@@ -15,32 +15,53 @@ export default function StudyHomeScreen() {
   const queue = useMemo(() => dueCards(cards, selected), [cards, selected]);
   const counts = countByState(queue);
   const minutes = estimateMinutes(counts.total);
+  const isEmptyLibrary = cards.length === 0;
 
   const chips = tags
     .map((tag) => ({ tag, count: dueCards(cards, tag.id).length }))
     .filter((item) => item.count > 0 || item.tag.id === selected);
 
+  const heroMeta = isEmptyLibrary
+    ? "Add words to begin"
+    : counts.total === 0
+      ? "All caught up"
+      : `words · about ${minutes} min`;
+
   return (
     <Screen scroll contentStyle={styles.scroll}>
       <Text style={styles.date}>{formatStudyDate()}</Text>
-      <Text style={styles.title}>Ready to study?</Text>
+      <Text style={styles.title}>{isEmptyLibrary ? "Start your deck" : "Ready to study?"}</Text>
 
       <View style={styles.hero}>
         <View style={styles.heroTop}>
           <View>
-            <Text style={styles.heroLabel}>Due today</Text>
+            <Text style={styles.heroLabel}>{isEmptyLibrary ? "Your library" : "Due today"}</Text>
             <Text style={styles.heroCount}>{counts.total}</Text>
           </View>
-          <Text style={styles.heroMeta}>{counts.total === 0 ? "All caught up" : `words · about ${minutes} min`}</Text>
+          <Text style={styles.heroMeta}>{heroMeta}</Text>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          disabled={counts.total === 0}
-          onPress={() => router.push({ pathname: "/study", params: { tag: selected } })}
-          style={({ pressed }) => [styles.start, counts.total === 0 && styles.startDisabled, pressed && counts.total > 0 && styles.startPressed]}
-        >
-          <Text style={[styles.startLabel, counts.total === 0 && styles.startLabelDisabled]}>Start studying</Text>
-        </Pressable>
+        {isEmptyLibrary ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push("/add")}
+            style={({ pressed }) => [styles.start, pressed && styles.startPressed]}
+          >
+            <Text style={styles.startLabel}>Add your first word</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            disabled={counts.total === 0}
+            onPress={() => router.push({ pathname: "/study", params: { tag: selected } })}
+            style={({ pressed }) => [
+              styles.start,
+              counts.total === 0 && styles.startDisabled,
+              pressed && counts.total > 0 && styles.startPressed,
+            ]}
+          >
+            <Text style={[styles.startLabel, counts.total === 0 && styles.startLabelDisabled]}>Start studying</Text>
+          </Pressable>
+        )}
       </View>
 
       <View style={styles.stats}>
@@ -50,18 +71,27 @@ export default function StudyHomeScreen() {
       </View>
 
       <Text style={styles.section}>Study by tag</Text>
-      <View style={styles.chips}>
-        <FilterChip label={`All · ${dueCards(cards).length}`} selected={selected === "all"} tone="indigo" onPress={() => setSelectedTag("all")} />
-        {chips.map(({ tag, count }) => (
+      {isEmptyLibrary ? (
+        <Text style={styles.emptyHint}>Tags you create will show up here for focused study sessions.</Text>
+      ) : (
+        <View style={styles.chips}>
           <FilterChip
-            key={tag.id}
-            label={`${tag.name} · ${count}`}
-            selected={selected === tag.id}
+            label={`All · ${dueCards(cards).length}`}
+            selected={selected === "all"}
             tone="indigo"
-            onPress={() => setSelectedTag(tag.id)}
+            onPress={() => setSelectedTag("all")}
           />
-        ))}
-      </View>
+          {chips.map(({ tag, count }) => (
+            <FilterChip
+              key={tag.id}
+              label={`${tag.name} · ${count}`}
+              selected={selected === tag.id}
+              tone="indigo"
+              onPress={() => setSelectedTag(tag.id)}
+            />
+          ))}
+        </View>
+      )}
     </Screen>
   );
 }
@@ -174,5 +204,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
+  },
+  emptyHint: {
+    color: colors.muted,
+    fontSize: 15,
+    lineHeight: 22,
   },
 });

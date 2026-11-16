@@ -6,7 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Screen } from "@/components/screen";
 import { Pronunciation, TagPill } from "@/components/tag-pill";
 import { colors } from "@/constants/theme";
-import { dueCards, RATINGS } from "@/data/schedule";
+import { dueCards, previewInterval, RATINGS } from "@/data/schedule";
 import { useLibrary } from "@/data/store";
 import { Card, Rating, Tag } from "@/data/types";
 
@@ -113,7 +113,9 @@ export default function StudyScreen() {
                 style={({ pressed }) => [styles.rating, { backgroundColor: ratingColor(item.id).bg }, pressed && styles.pressed]}
               >
                 <Text style={[styles.ratingLabel, { color: ratingColor(item.id).text }]}>{item.label}</Text>
-                <Text style={[styles.ratingHint, { color: ratingColor(item.id).text }]}>{item.hint}</Text>
+                <Text style={[styles.ratingHint, { color: ratingColor(item.id).text }]}>
+                  {previewInterval(currentCard, item.id)}
+                </Text>
               </Pressable>
             ))}
           </View>
