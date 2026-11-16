@@ -3,7 +3,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 
 import { TAG_PALETTE } from "@/data/palette";
 import { applyRating, createNewCardFields, normalizeCard } from "@/data/schedule";
-import { Card, Library, NewCardInput, Rating, Tag } from "@/data/types";
+import { Card, Library, NewCardInput, Rating, Tag, UpdateCardInput } from "@/data/types";
 
 const STORAGE_KEY = "flashcards.library.v3";
 const EMPTY_LIBRARY: Library = { tags: [], cards: [] };
@@ -13,6 +13,7 @@ type LibraryContextValue = {
   tags: Tag[];
   cards: Card[];
   addCard: (input: NewCardInput) => void;
+  updateCard: (id: string, input: UpdateCardInput) => void;
   deleteCard: (id: string) => void;
   addTag: (name: string) => string | null;
   renameTag: (id: string, name: string) => void;
@@ -141,6 +142,30 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setLibrary((current) => (current ? { ...current, cards: [card, ...current.cards] } : current));
   }, []);
 
+  const updateCard = useCallback((id: string, input: UpdateCardInput) => {
+    const word = input.word.trim();
+    const translation = input.translation.trim();
+    if (!word || !translation) return;
+
+    setLibrary((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        cards: current.cards.map((card) =>
+          card.id === id
+            ? {
+                ...card,
+                word,
+                pronunciation: input.pronunciation.trim(),
+                translation,
+                tagIds: input.tagIds,
+              }
+            : card,
+        ),
+      };
+    });
+  }, []);
+
   const deleteCard = useCallback((id: string) => {
     setLibrary((current) => {
       if (!current) return current;
@@ -211,13 +236,14 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       tags: library?.tags ?? [],
       cards: library?.cards ?? [],
       addCard,
+      updateCard,
       deleteCard,
       addTag,
       renameTag,
       deleteTag,
       rateCard,
     }),
-    [library, addCard, deleteCard, addTag, renameTag, deleteTag, rateCard],
+    [library, addCard, updateCard, deleteCard, addTag, renameTag, deleteTag, rateCard],
   );
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;

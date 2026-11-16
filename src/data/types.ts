@@ -39,3 +39,5 @@ export type NewCardInput = {
   translation: string;
   tagIds: string[];
 };
+
+export type UpdateCardInput = NewCardInput;
