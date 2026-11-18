@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -28,10 +28,13 @@ type Field = "word" | "pronunciation" | "translation" | "tag";
 export default function WordsScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { cards, tags, updateCard, deleteCard, addTag } = useLibrary();
+  const { cards, tags, addCard, updateCard, deleteCard, addTag } = useLibrary();
   const [query, setQuery] = useState("");
   const [tagId, setTagId] = useState("all");
-  const [editing, setEditing] = useState<Card | null>(null);
+  const [sheet, setSheet] = useState<{ key: number; card: Card | null; tagIds: string[] } | null>(null);
+  const sheetKey = useRef(0);
+  const composeHandled = useRef(false);
+  const params = useLocalSearchParams<{ compose?: string }>();
   const selected = tags.some((tag) => tag.id === tagId) ? tagId : "all";
   const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
 
@@ -44,11 +47,37 @@ export default function WordsScreen() {
     });
   }, [cards, query, selected]);
 
+  function openCreate() {
+    sheetKey.current += 1;
+    setSheet({
+      key: sheetKey.current,
+      card: null,
+      tagIds: selected === "all" ? [] : [selected],
+    });
+  }
+
+  useEffect(() => {
+    if (params.compose !== "1") {
+      composeHandled.current = false;
+      return;
+    }
+    if (composeHandled.current) return;
+    composeHandled.current = true;
+    openCreate();
+    router.setParams({ compose: undefined });
+  }, [params.compose, selected]);
+
   return (
     <Screen contentStyle={styles.screen}>
       <View style={styles.top}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Words</Text>
+        <View>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Words</Text>
+            <Pressable accessibilityRole="button" onPress={openCreate} hitSlop={8} style={styles.addWord}>
+              <Ionicons name="add" size={22} color={colors.indigo} />
+              <Text style={styles.addWordLabel}>Add</Text>
+            </Pressable>
+          </View>
           <Text style={styles.total}>{cards.length} total</Text>
         </View>
 
@@ -89,14 +118,17 @@ export default function WordsScreen() {
           contentContainerStyle={filtered.length === 0 ? styles.emptyList : undefined}
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
-            <WordRow card={item} tagsById={tagsById} onLongPress={() => setEditing(item)} />
+            <WordRow card={item} tagsById={tagsById} onLongPress={() => {
+              sheetKey.current += 1;
+              setSheet({ key: sheetKey.current, card: item, tagIds: item.tagIds });
+            }} />
           )}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           ListEmptyComponent={
             <View style={styles.emptyBlock}>
               <Text style={styles.empty}>{cards.length === 0 ? "No words yet." : "No words match."}</Text>
               {cards.length === 0 ? (
-                <Pressable accessibilityRole="button" onPress={() => router.push("/add")} style={styles.emptyAction}>
+                <Pressable accessibilityRole="button" onPress={openCreate} style={styles.emptyAction}>
                   <Text style={styles.emptyActionLabel}>Add a word</Text>
                 </Pressable>
               ) : null}
@@ -105,20 +137,22 @@ export default function WordsScreen() {
         />
       </View>
 
-      <EditWordModal
-        card={editing}
+      <WordSheet
+        session={sheet}
         tags={tags}
-        onClose={() => setEditing(null)}
+        onClose={() => setSheet(null)}
         onSave={(input) => {
-          if (!editing) return;
-          updateCard(editing.id, input);
-          setEditing(null);
+          if (!sheet) return;
+          if (sheet.card) updateCard(sheet.card.id, input);
+          else addCard(input);
+          setSheet(null);
         }}
+        onSaveAnother={(input) => addCard(input)}
         onDelete={() => {
-          if (!editing) return;
-          const id = editing.id;
-          const label = editing.word;
-          setEditing(null);
+          if (!sheet?.card) return;
+          const id = sheet.card.id;
+          const label = sheet.card.word;
+          setSheet(null);
           Alert.alert("Delete word", `Remove “${label}” from your library?`, [
             { text: "Cancel", style: "cancel" },
             { text: "Delete", style: "destructive", onPress: () => deleteCard(id) },
@@ -164,43 +198,86 @@ function WordRow({
   );
 }
 
-function EditWordModal({
-  card,
+type WordInput = { word: string; pronunciation: string; translation: string; tagIds: string[] };
+type WordSession = { key: number; card: Card | null; tagIds: string[] };
+
+function WordSheet({
+  session,
   tags,
   onClose,
   onSave,
+  onSaveAnother,
+  onDelete,
+  onAddTag,
+}: {
+  session: WordSession | null;
+  tags: Tag[];
+  onClose: () => void;
+  onSave: (input: WordInput) => void;
+  onSaveAnother: (input: WordInput) => void;
+  onDelete: () => void;
+  onAddTag: (name: string) => string | null;
+}) {
+  return (
+    <Modal visible={session !== null} transparent animationType="fade" onRequestClose={onClose}>
+      {session ? (
+        <WordForm
+          key={session.key}
+          card={session.card}
+          initialTagIds={session.tagIds}
+          tags={tags}
+          onClose={onClose}
+          onSave={onSave}
+          onSaveAnother={onSaveAnother}
+          onDelete={onDelete}
+          onAddTag={onAddTag}
+        />
+      ) : null}
+    </Modal>
+  );
+}
+
+function WordForm({
+  card,
+  initialTagIds,
+  tags,
+  onClose,
+  onSave,
+  onSaveAnother,
   onDelete,
   onAddTag,
 }: {
   card: Card | null;
+  initialTagIds: string[];
   tags: Tag[];
   onClose: () => void;
-  onSave: (input: { word: string; pronunciation: string; translation: string; tagIds: string[] }) => void;
+  onSave: (input: WordInput) => void;
+  onSaveAnother: (input: WordInput) => void;
   onDelete: () => void;
   onAddTag: (name: string) => string | null;
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const [word, setWord] = useState("");
-  const [pronunciation, setPronunciation] = useState("");
-  const [translation, setTranslation] = useState("");
-  const [tagIds, setTagIds] = useState<string[]>([]);
+  const creating = card === null;
+  const [word, setWord] = useState(card?.word ?? "");
+  const [pronunciation, setPronunciation] = useState(card?.pronunciation ?? "");
+  const [translation, setTranslation] = useState(card?.translation ?? "");
+  const [tagIds, setTagIds] = useState(card?.tagIds ?? initialTagIds);
   const [focused, setFocused] = useState<Field | null>(null);
   const [creatingTag, setCreatingTag] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
 
-  useEffect(() => {
-    if (!card) return;
-    setWord(card.word);
-    setPronunciation(card.pronunciation);
-    setTranslation(card.translation);
-    setTagIds(card.tagIds);
+  const canSave = word.trim().length > 0 && translation.trim().length > 0;
+  const draft = { word, pronunciation, translation, tagIds };
+
+  function clearEntry() {
+    setWord("");
+    setPronunciation("");
+    setTranslation("");
     setFocused(null);
     setCreatingTag(false);
     setTagDraft("");
-  }, [card]);
-
-  const canSave = word.trim().length > 0 && translation.trim().length > 0;
+  }
 
   function toggleTag(id: string) {
     setTagIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
@@ -215,16 +292,15 @@ function EditWordModal({
   }
 
   return (
-    <Modal visible={card !== null} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <Pressable style={styles.backdropPress} onPress={onClose} />
-        <View style={styles.sheet}>
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Edit word</Text>
-            <Pressable accessibilityRole="button" onPress={onClose} hitSlop={8}>
-              <Text style={styles.cancel}>Cancel</Text>
-            </Pressable>
-          </View>
+    <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <Pressable style={styles.backdropPress} onPress={onClose} />
+      <View style={styles.sheet}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>{creating ? "New word" : "Edit word"}</Text>
+          <Pressable accessibilityRole="button" onPress={onClose} hitSlop={8}>
+            <Text style={styles.cancel}>Cancel</Text>
+          </Pressable>
+        </View>
 
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.fieldLabel}>Word</Text>
@@ -233,6 +309,8 @@ function EditWordModal({
               onChangeText={setWord}
               onFocus={() => setFocused("word")}
               onBlur={() => setFocused(null)}
+              placeholder={creating ? "serendipity" : undefined}
+              placeholderTextColor={colors.placeholder}
               autoCapitalize="none"
               autoCorrect={false}
               style={[styles.input, focused === "word" && styles.inputFocused]}
@@ -244,6 +322,8 @@ function EditWordModal({
               onChangeText={setPronunciation}
               onFocus={() => setFocused("pronunciation")}
               onBlur={() => setFocused(null)}
+              placeholder={creating ? "/ˌserənˈdɪpəti/" : undefined}
+              placeholderTextColor={colors.placeholder}
               autoCapitalize="none"
               autoCorrect={false}
               style={[styles.input, focused === "pronunciation" && styles.inputFocused]}
@@ -255,6 +335,8 @@ function EditWordModal({
               onChangeText={setTranslation}
               onFocus={() => setFocused("translation")}
               onBlur={() => setFocused(null)}
+              placeholder={creating ? "Type the translation" : undefined}
+              placeholderTextColor={colors.placeholder}
               style={[styles.input, focused === "translation" && styles.inputFocused]}
             />
 
@@ -304,17 +386,31 @@ function EditWordModal({
           <Pressable
             accessibilityRole="button"
             disabled={!canSave}
-            onPress={() => onSave({ word, pronunciation, translation, tagIds })}
+            onPress={() => onSave(draft)}
             style={({ pressed }) => [styles.save, !canSave && styles.saveDisabled, pressed && canSave && styles.pressed]}
           >
-            <Text style={styles.saveLabel}>Save changes</Text>
+            <Text style={styles.saveLabel}>{creating ? "Save word" : "Save changes"}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={onDelete} style={styles.delete}>
-            <Text style={styles.deleteLabel}>Delete word</Text>
-          </Pressable>
+          {creating ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={!canSave}
+              onPress={() => {
+                if (!canSave) return;
+                onSaveAnother(draft);
+                clearEntry();
+              }}
+              style={styles.another}
+            >
+              <Text style={[styles.anotherLabel, !canSave && styles.anotherDisabled]}>Save and add another</Text>
+            </Pressable>
+          ) : (
+            <Pressable accessibilityRole="button" onPress={onDelete} style={styles.delete}>
+              <Text style={styles.deleteLabel}>Delete word</Text>
+            </Pressable>
+          )}
         </View>
       </KeyboardAvoidingView>
-    </Modal>
   );
 }
 
@@ -328,7 +424,7 @@ const makeStyles = (colors: Palette) =>
   top: {
     paddingHorizontal: 20,
   },
-  header: {
+  titleRow: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
@@ -339,8 +435,19 @@ const makeStyles = (colors: Palette) =>
     fontWeight: "700",
     letterSpacing: -0.6,
   },
+  addWord: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    marginBottom: 4,
+  },
+  addWordLabel: {
+    color: colors.indigo,
+    fontSize: 17,
+    fontWeight: "700",
+  },
   total: {
-    marginBottom: 6,
+    marginTop: 2,
     color: colors.muted,
     fontSize: 15,
   },
@@ -590,6 +697,18 @@ const makeStyles = (colors: Palette) =>
     color: colors.onIndigo,
     fontSize: 17,
     fontWeight: "700",
+  },
+  another: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  anotherLabel: {
+    color: colors.indigo,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  anotherDisabled: {
+    opacity: 0.4,
   },
   delete: {
     alignItems: "center",

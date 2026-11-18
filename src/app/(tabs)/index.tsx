@@ -45,7 +45,7 @@ export default function StudyHomeScreen() {
         {isEmptyLibrary ? (
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.push("/add")}
+            onPress={() => router.push({ pathname: "/words", params: { compose: "1" } })}
             style={({ pressed }) => [styles.start, pressed && styles.startPressed]}
           >
             <Text style={styles.startLabel}>Add your first word</Text>
