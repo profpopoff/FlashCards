@@ -4,11 +4,13 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { FilterChip } from "@/components/filter-chip";
 import { Screen } from "@/components/screen";
-import { colors, formatStudyDate } from "@/constants/theme";
+import { useThemedStyles } from "@/components/theme-provider";
+import { formatStudyDate, Palette } from "@/constants/theme";
 import { countByState, dueCards, estimateMinutes } from "@/data/schedule";
 import { useLibrary } from "@/data/store";
 
 export default function StudyHomeScreen() {
+  const styles = useThemedStyles(makeStyles);
   const { cards, tags } = useLibrary();
   const [selectedTag, setSelectedTag] = useState("all");
   const selected = tags.some((tag) => tag.id === selectedTag) ? selectedTag : "all";
@@ -97,6 +99,7 @@ export default function StudyHomeScreen() {
 }
 
 function Stat({ value, label }: { value: number; label: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.stat}>
       <Text style={styles.statValue}>{value}</Text>
@@ -105,7 +108,8 @@ function Stat({ value, label }: { value: number; label: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
   scroll: {
     paddingTop: 12,
   },
@@ -123,7 +127,7 @@ const styles = StyleSheet.create({
   hero: {
     marginTop: 22,
     borderRadius: 28,
-    backgroundColor: colors.indigo,
+    backgroundColor: colors.indigoFill,
     padding: 20,
   },
   heroTop: {
@@ -153,7 +157,7 @@ const styles = StyleSheet.create({
   start: {
     marginTop: 16,
     borderRadius: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.heroButton,
     alignItems: "center",
     paddingVertical: 16,
   },
@@ -164,7 +168,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.45)",
   },
   startLabel: {
-    color: colors.indigo,
+    color: colors.indigoFill,
     fontSize: 17,
     fontWeight: "700",
   },

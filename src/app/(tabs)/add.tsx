@@ -3,12 +3,15 @@ import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Screen } from "@/components/screen";
-import { colors } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/components/theme-provider";
+import { Palette } from "@/constants/theme";
 import { useLibrary } from "@/data/store";
 
 type Field = "word" | "pronunciation" | "translation" | "tag";
 
 export default function AddWordScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { tags, addCard, addTag } = useLibrary();
   const [word, setWord] = useState("");
   const [pronunciation, setPronunciation] = useState("");
@@ -108,7 +111,7 @@ export default function AddWordScreen() {
                   onPress={() => toggleTag(tag.id)}
                   style={[styles.tag, selected ? styles.tagSelected : styles.tagIdle]}
                 >
-                  {selected ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}
+                  {selected ? <Ionicons name="checkmark" size={14} color={colors.onIndigo} /> : null}
                   <Text style={[styles.tagLabel, selected && styles.tagLabelSelected]}>{tag.name}</Text>
                 </Pressable>
               );
@@ -158,10 +161,12 @@ export default function AddWordScreen() {
 }
 
 function FieldLabel({ label }: { label: string }) {
+  const styles = useThemedStyles(makeStyles);
   return <Text style={styles.fieldLabel}>{label}</Text>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
   flex: {
     flex: 1,
   },
@@ -226,7 +231,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   tagSelected: {
-    backgroundColor: colors.indigo,
+    backgroundColor: colors.indigoFill,
   },
   tagLabel: {
     color: colors.ink,
@@ -234,7 +239,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   tagLabelSelected: {
-    color: "#FFFFFF",
+    color: colors.onIndigo,
   },
   newTag: {
     alignSelf: "flex-start",
@@ -242,7 +247,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#C8C4BC",
+    borderColor: colors.dashed,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
@@ -262,13 +267,13 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   newTagAdd: {
-    backgroundColor: colors.indigo,
+    backgroundColor: colors.indigoFill,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
   newTagAddLabel: {
-    color: "#FFFFFF",
+    color: colors.onIndigo,
     fontSize: 15,
     fontWeight: "700",
   },
@@ -277,7 +282,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   save: {
-    backgroundColor: colors.indigo,
+    backgroundColor: colors.indigoFill,
     borderRadius: 18,
     alignItems: "center",
     paddingVertical: 16,
@@ -289,7 +294,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   saveLabel: {
-    color: "#FFFFFF",
+    color: colors.onIndigo,
     fontSize: 17,
     fontWeight: "700",
   },

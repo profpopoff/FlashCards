@@ -18,13 +18,16 @@ import {
 import { FilterChip } from "@/components/filter-chip";
 import { Screen } from "@/components/screen";
 import { Pronunciation, TagPill } from "@/components/tag-pill";
-import { colors } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/components/theme-provider";
+import { Palette } from "@/constants/theme";
 import { Card, Tag } from "@/data/types";
 import { useLibrary } from "@/data/store";
 
 type Field = "word" | "pronunciation" | "translation" | "tag";
 
 export default function WordsScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { cards, tags, updateCard, deleteCard, addTag } = useLibrary();
   const [query, setQuery] = useState("");
   const [tagId, setTagId] = useState("all");
@@ -136,6 +139,7 @@ function WordRow({
   tagsById: Map<string, Tag>;
   onLongPress: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const rowTags = card.tagIds.map((id) => tagsById.get(id)).filter((tag): tag is Tag => Boolean(tag));
 
   return (
@@ -175,6 +179,8 @@ function EditWordModal({
   onDelete: () => void;
   onAddTag: (name: string) => string | null;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [word, setWord] = useState("");
   const [pronunciation, setPronunciation] = useState("");
   const [translation, setTranslation] = useState("");
@@ -264,7 +270,7 @@ function EditWordModal({
                     onPress={() => toggleTag(tag.id)}
                     style={[styles.tag, selected ? styles.tagSelected : styles.tagIdle]}
                   >
-                    {selected ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}
+                    {selected ? <Ionicons name="checkmark" size={14} color={colors.onIndigo} /> : null}
                     <Text style={[styles.tagLabel, selected && styles.tagLabelSelected]}>{tag.name}</Text>
                   </Pressable>
                 );
@@ -312,7 +318,8 @@ function EditWordModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
   screen: {
     paddingTop: 12,
     paddingHorizontal: 0,
@@ -437,20 +444,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   emptyAction: {
-    backgroundColor: colors.indigo,
+    backgroundColor: colors.indigoFill,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
   emptyActionLabel: {
-    color: "#FFFFFF",
+    color: colors.onIndigo,
     fontSize: 15,
     fontWeight: "700",
   },
   backdrop: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(28,28,30,0.35)",
+    backgroundColor: colors.backdrop,
   },
   backdropPress: {
     flex: 1,
@@ -521,7 +528,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   tagSelected: {
-    backgroundColor: colors.indigo,
+    backgroundColor: colors.indigoFill,
   },
   tagLabel: {
     color: colors.ink,
@@ -529,7 +536,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   tagLabelSelected: {
-    color: "#FFFFFF",
+    color: colors.onIndigo,
   },
   newTag: {
     alignSelf: "flex-start",
@@ -537,7 +544,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#C8C4BC",
+    borderColor: colors.dashed,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
@@ -556,19 +563,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   newTagAdd: {
-    backgroundColor: colors.indigo,
+    backgroundColor: colors.indigoFill,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
   newTagAddLabel: {
-    color: "#FFFFFF",
+    color: colors.onIndigo,
     fontSize: 15,
     fontWeight: "700",
   },
   save: {
     marginTop: 12,
-    backgroundColor: colors.indigo,
+    backgroundColor: colors.indigoFill,
     borderRadius: 18,
     alignItems: "center",
     paddingVertical: 16,
@@ -580,7 +587,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   saveLabel: {
-    color: "#FFFFFF",
+    color: colors.onIndigo,
     fontSize: 17,
     fontWeight: "700",
   },

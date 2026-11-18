@@ -3,12 +3,15 @@ import { useMemo, useState } from "react";
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Screen } from "@/components/screen";
-import { colors } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/components/theme-provider";
+import { Palette, tagAppearance } from "@/constants/theme";
 import { wordCountLabel } from "@/data/schedule";
 import { useLibrary } from "@/data/store";
 import { Tag } from "@/data/types";
 
 export default function TagsScreen() {
+  const { colors, scheme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { tags, cards, addTag, renameTag, deleteTag } = useLibrary();
   const [name, setName] = useState("");
   const [editing, setEditing] = useState<Tag | null>(null);
@@ -99,7 +102,7 @@ export default function TagsScreen() {
         <View style={styles.list}>
           {tags.map((tag, index) => (
             <View key={tag.id} style={[styles.row, index < tags.length - 1 && styles.rowBorder]}>
-              <View style={[styles.dot, { backgroundColor: tag.color }]} />
+              <View style={[styles.dot, { backgroundColor: tagAppearance(tag.color, scheme, colors.surface).color }]} />
               <Text style={styles.name}>{tag.name}</Text>
               <Text style={styles.count}>{wordCountLabel(counts.get(tag.id) ?? 0)}</Text>
               <Pressable
@@ -108,7 +111,7 @@ export default function TagsScreen() {
                 onPress={() => openEditor(tag)}
                 hitSlop={8}
               >
-                <Ionicons name="pencil" size={18} color="#B0ACA4" />
+                <Ionicons name="pencil" size={18} color={colors.placeholder} />
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -116,7 +119,7 @@ export default function TagsScreen() {
                 onPress={() => confirmDelete(tag)}
                 hitSlop={8}
               >
-                <Ionicons name="trash-outline" size={18} color="#B0ACA4" />
+                <Ionicons name="trash-outline" size={18} color={colors.placeholder} />
               </Pressable>
             </View>
           ))}
@@ -150,7 +153,8 @@ export default function TagsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
   scroll: {
     paddingTop: 12,
   },
@@ -181,7 +185,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   add: {
-    backgroundColor: colors.indigo,
+    backgroundColor: colors.indigoFill,
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 14,
@@ -193,7 +197,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   addLabel: {
-    color: "#FFFFFF",
+    color: colors.onIndigo,
     fontSize: 16,
     fontWeight: "700",
   },
@@ -242,7 +246,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(28,28,30,0.35)",
+    backgroundColor: colors.backdrop,
     justifyContent: "center",
     padding: 24,
   },
@@ -258,13 +262,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   save: {
-    backgroundColor: colors.indigo,
+    backgroundColor: colors.indigoFill,
     borderRadius: 14,
     alignItems: "center",
     paddingVertical: 14,
   },
   saveLabel: {
-    color: "#FFFFFF",
+    color: colors.onIndigo,
     fontSize: 16,
     fontWeight: "700",
   },

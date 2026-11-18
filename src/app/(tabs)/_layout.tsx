@@ -1,17 +1,19 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 
-import { colors } from "@/constants/theme";
+import { useTheme } from "@/components/theme-provider";
 
 export default function TabLayout() {
+  const { colors } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.indigo,
-        tabBarInactiveTintColor: "#9A968E",
+        tabBarInactiveTintColor: colors.tabInactive,
         tabBarStyle: {
-          backgroundColor: "#FFFCF8",
+          backgroundColor: colors.tabBar,
           borderTopColor: colors.line,
           borderTopWidth: 1,
         },
@@ -47,6 +49,13 @@ export default function TabLayout() {
         options={{
           title: "Tags",
           tabBarIcon: ({ color, size }) => <Ionicons name="pricetag-outline" color={color as string} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: "Settings",
+          tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" color={color as string} size={size} />,
         }}
       />
     </Tabs>

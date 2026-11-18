@@ -5,7 +5,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Screen } from "@/components/screen";
 import { Pronunciation, TagPill } from "@/components/tag-pill";
-import { colors } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/components/theme-provider";
+import { Palette } from "@/constants/theme";
 import { dueCards, previewInterval, RATINGS } from "@/data/schedule";
 import { useLibrary } from "@/data/store";
 import { Card, Rating, Tag } from "@/data/types";
@@ -13,6 +14,8 @@ import { Card, Rating, Tag } from "@/data/types";
 type Side = "word" | "translation";
 
 export default function StudyScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const params = useLocalSearchParams<{ tag?: string }>();
   const tag = typeof params.tag === "string" ? params.tag : "all";
   const { cards, tags, rateCard } = useLibrary();
@@ -110,10 +113,10 @@ export default function StudyScreen() {
                 key={item.id}
                 accessibilityRole="button"
                 onPress={() => rate(item.id)}
-                style={({ pressed }) => [styles.rating, { backgroundColor: ratingColor(item.id).bg }, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.rating, { backgroundColor: ratingColor(colors, item.id).bg }, pressed && styles.pressed]}
               >
-                <Text style={[styles.ratingLabel, { color: ratingColor(item.id).text }]}>{item.label}</Text>
-                <Text style={[styles.ratingHint, { color: ratingColor(item.id).text }]}>
+                <Text style={[styles.ratingLabel, { color: ratingColor(colors, item.id).text }]}>{item.label}</Text>
+                <Text style={[styles.ratingHint, { color: ratingColor(colors, item.id).text }]}>
                   {previewInterval(currentCard, item.id)}
                 </Text>
               </Pressable>
@@ -130,6 +133,7 @@ export default function StudyScreen() {
 }
 
 function SegmentButton({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress} style={[styles.segmentItem, selected && styles.segmentItemOn]}>
       <Text style={[styles.segmentLabel, selected && styles.segmentLabelOn]}>{label}</Text>
@@ -138,6 +142,7 @@ function SegmentButton({ label, selected, onPress }: { label: string; selected: 
 }
 
 function StudyFace({ card, tags, side, revealed }: { card: Card; tags: Tag[]; side: Side; revealed: boolean }) {
+  const styles = useThemedStyles(makeStyles);
   const cardTags = tags.filter((tag) => card.tagIds.includes(tag.id));
 
   return (
@@ -178,7 +183,7 @@ function StudyFace({ card, tags, side, revealed }: { card: Card; tags: Tag[]; si
   );
 }
 
-function ratingColor(rating: Rating) {
+function ratingColor(colors: Palette, rating: Rating) {
   switch (rating) {
     case "again":
       return { text: colors.again, bg: colors.againBg };
@@ -191,7 +196,8 @@ function ratingColor(rating: Rating) {
   }
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
   screen: {
     paddingTop: 8,
     paddingBottom: 12,
@@ -212,7 +218,7 @@ const styles = StyleSheet.create({
   fill: {
     height: "100%",
     borderRadius: 999,
-    backgroundColor: colors.indigo,
+    backgroundColor: colors.indigoFill,
   },
   count: {
     minWidth: 52,
@@ -234,7 +240,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   segmentItemOn: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.segmentActive,
   },
   segmentLabel: {
     color: colors.muted,
@@ -329,13 +335,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   primary: {
-    backgroundColor: colors.indigo,
+    backgroundColor: colors.indigoFill,
     borderRadius: 18,
     alignItems: "center",
     paddingVertical: 16,
   },
   primaryLabel: {
-    color: "#FFFFFF",
+    color: colors.onIndigo,
     fontSize: 17,
     fontWeight: "700",
   },

@@ -2,24 +2,38 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet, View } from "react-native";
 
-import { colors } from "@/constants/theme";
+import { ThemeProvider, useTheme, useThemedStyles } from "@/components/theme-provider";
+import { Palette } from "@/constants/theme";
 import { LibraryProvider, useLibrary } from "@/data/store";
 
 export default function RootLayout() {
   return (
-    <LibraryProvider>
-      <View style={styles.shell}>
-        <View style={styles.device}>
-          <StatusBar style="dark" />
-          <RootNavigator />
-        </View>
+    <ThemeProvider>
+      <LibraryProvider>
+        <ThemedShell />
+      </LibraryProvider>
+    </ThemeProvider>
+  );
+}
+
+function ThemedShell() {
+  const { scheme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
+  return (
+    <View style={styles.shell}>
+      <View style={styles.device}>
+        <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+        <RootNavigator />
       </View>
-    </LibraryProvider>
+    </View>
   );
 }
 
 function RootNavigator() {
   const { ready } = useLibrary();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   if (!ready) {
     return <View style={styles.loading} />;
@@ -33,20 +47,21 @@ function RootNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
-  shell: {
-    flex: 1,
-    alignItems: "center",
-    backgroundColor: colors.shell,
-  },
-  device: {
-    flex: 1,
-    width: "100%",
-    maxWidth: 440,
-    backgroundColor: colors.background,
-  },
-  loading: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    shell: {
+      flex: 1,
+      alignItems: "center",
+      backgroundColor: colors.shell,
+    },
+    device: {
+      flex: 1,
+      width: "100%",
+      maxWidth: 440,
+      backgroundColor: colors.background,
+    },
+    loading: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+  });
