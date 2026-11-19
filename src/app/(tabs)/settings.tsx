@@ -1,8 +1,13 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 
 import { Screen } from "@/components/screen";
+import { useStudyReminders } from "@/components/study-reminders";
 import { useTheme, useThemedStyles } from "@/components/theme-provider";
 import { AppearancePreference, Palette } from "@/constants/theme";
+import { ImportPreview, librarySummary } from "@/data/library-io";
+import { useLibrary } from "@/data/store";
+import { exportLibraryFile, isLibraryTransferSupported, pickLibraryImport } from "@/data/transfer";
 
 const OPTIONS: { id: AppearancePreference; label: string }[] = [
   { id: "system", label: "System" },
@@ -11,14 +16,100 @@ const OPTIONS: { id: AppearancePreference; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { preference, setPreference } = useTheme();
+  const { preference, setPreference, colors } = useTheme();
+  const { tags, cards, replaceLibrary, mergeLibrary } = useLibrary();
+  const reminders = useStudyReminders();
   const styles = useThemedStyles(makeStyles);
+  const [busy, setBusy] = useState<"export" | "import" | null>(null);
+  const [reminderBusy, setReminderBusy] = useState(false);
+  const transferSupported = isLibraryTransferSupported();
+
+  async function onToggleReminders(next: boolean) {
+    if (reminderBusy) return;
+    setReminderBusy(true);
+    try {
+      const enabled = await reminders.setEnabled(next);
+      if (next && !enabled) {
+        Alert.alert(
+          "Notifications disabled",
+          "Allow notifications for Flashcards in system settings to get study reminders.",
+        );
+      }
+    } finally {
+      setReminderBusy(false);
+    }
+  }
+
+  async function onExport() {
+    if (busy) return;
+    setBusy("export");
+    try {
+      await exportLibraryFile({ tags, cards });
+    } catch (error) {
+      Alert.alert("Export failed", error instanceof Error ? error.message : "Could not export the library.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function onImport() {
+    if (busy) return;
+    setBusy("import");
+    try {
+      const preview = await pickLibraryImport();
+      if (!preview) return;
+      askImportMode(preview);
+    } catch (error) {
+      Alert.alert("Import failed", error instanceof Error ? error.message : "Could not import the library.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function askImportMode(preview: ImportPreview) {
+    Alert.alert(
+      "Import library?",
+      `This file has ${librarySummary(preview.library)}.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Replace all",
+          style: "destructive",
+          onPress: () => confirmReplace(preview),
+        },
+        {
+          text: "Merge",
+          onPress: () => {
+            mergeLibrary(preview.library);
+            Alert.alert("Imported", `Merged ${librarySummary(preview.library)}.`);
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  }
+
+  function confirmReplace(preview: ImportPreview) {
+    Alert.alert("Replace library?", "This deletes your current words and tags, then loads the file.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Replace",
+        style: "destructive",
+        onPress: () => {
+          replaceLibrary(preview.library);
+          Alert.alert("Imported", `Replaced with ${librarySummary(preview.library)}.`);
+        },
+      },
+    ]);
+  }
 
   return (
     <Screen scroll contentStyle={styles.scroll}>
       <Text style={styles.title}>Settings</Text>
-      <Text style={styles.subtitle}>Appearance follows your phone until you choose.</Text>
-      <View accessibilityLabel="Appearance" style={styles.segment}>
+
+      <Text style={[styles.section, styles.sectionFirst]}>Theme</Text>
+      <Text style={styles.sectionCopy}>Appearance follows your phone until you choose.</Text>
+      <View accessibilityLabel="Theme" style={styles.segment}>
         {OPTIONS.map((option) => {
           const selected = preference === option.id;
           return (
@@ -34,6 +125,60 @@ export default function SettingsScreen() {
           );
         })}
       </View>
+
+      {reminders.supported ? (
+        <>
+          <Text style={styles.section}>Study reminders</Text>
+          <Text style={styles.sectionCopy}>Get notified when new words become due.</Text>
+          <View style={styles.reminderRow}>
+            <Text style={styles.reminderLabel}>Notifications</Text>
+            <Switch
+              value={reminders.enabled}
+              onValueChange={onToggleReminders}
+              disabled={!reminders.ready || reminderBusy}
+              trackColor={{ false: colors.track, true: colors.indigoFill }}
+              thumbColor={colors.heroButton}
+            />
+          </View>
+        </>
+      ) : null}
+
+      <Text style={styles.section}>Library</Text>
+      <Text style={styles.sectionCopy}>{librarySummary({ tags, cards })}</Text>
+
+      {transferSupported ? (
+        <View style={styles.actions}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy !== null}
+            onPress={onExport}
+            style={({ pressed }) => [styles.action, pressed && !busy && styles.pressed, busy && styles.disabled]}
+          >
+            {busy === "export" ? (
+              <ActivityIndicator color={colors.onIndigo} />
+            ) : (
+              <Text style={styles.actionLabel}>Export library</Text>
+            )}
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy !== null}
+            onPress={onImport}
+            style={({ pressed }) => [styles.action, styles.actionSecondary, pressed && !busy && styles.pressed, busy && styles.disabled]}
+          >
+            {busy === "import" ? (
+              <ActivityIndicator color={colors.ink} />
+            ) : (
+              <Text style={styles.actionSecondaryLabel}>Import library</Text>
+            )}
+          </Pressable>
+        </View>
+      ) : (
+        <Text style={styles.webHint}>
+          Export and import are available in the iOS and Android apps
+          {Platform.OS === "web" ? ", not in the browser." : "."}
+        </Text>
+      )}
     </Screen>
   );
 }
@@ -42,6 +187,7 @@ const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     scroll: {
       paddingTop: 12,
+      paddingBottom: 28,
     },
     title: {
       color: colors.ink,
@@ -49,18 +195,12 @@ const makeStyles = (colors: Palette) =>
       fontWeight: "700",
       letterSpacing: -0.6,
     },
-    subtitle: {
-      marginTop: 6,
-      color: colors.muted,
-      fontSize: 16,
-      lineHeight: 22,
-    },
     segment: {
       flexDirection: "row",
       backgroundColor: colors.segment,
       borderRadius: 14,
       padding: 4,
-      marginTop: 22,
+      marginTop: 14,
     },
     option: {
       flex: 1,
@@ -79,5 +219,76 @@ const makeStyles = (colors: Palette) =>
     optionLabelOn: {
       color: colors.ink,
       fontWeight: "700",
+    },
+    section: {
+      marginTop: 32,
+      color: colors.ink,
+      fontSize: 18,
+      fontWeight: "700",
+    },
+    sectionFirst: {
+      marginTop: 22,
+    },
+    sectionCopy: {
+      marginTop: 6,
+      color: colors.muted,
+      fontSize: 15,
+      lineHeight: 22,
+    },
+    reminderRow: {
+      marginTop: 14,
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    reminderLabel: {
+      flex: 1,
+      color: colors.ink,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    actions: {
+      marginTop: 16,
+      gap: 10,
+    },
+    action: {
+      backgroundColor: colors.indigoFill,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: 52,
+      paddingHorizontal: 16,
+    },
+    actionSecondary: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.line,
+    },
+    actionLabel: {
+      color: colors.onIndigo,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    actionSecondaryLabel: {
+      color: colors.ink,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    pressed: {
+      opacity: 0.85,
+    },
+    disabled: {
+      opacity: 0.55,
+    },
+    webHint: {
+      marginTop: 14,
+      color: colors.muted,
+      fontSize: 15,
+      lineHeight: 22,
     },
   });

@@ -1,8 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
+import { mergeLibraries, parseLibrary } from "@/data/library-io";
 import { TAG_PALETTE } from "@/data/palette";
-import { applyRating, createNewCardFields, normalizeCard } from "@/data/schedule";
+import { applyRating, createNewCardFields } from "@/data/schedule";
 import { Card, Library, NewCardInput, Rating, Tag, UpdateCardInput } from "@/data/types";
 
 const STORAGE_KEY = "flashcards.library.v3";
@@ -19,67 +20,11 @@ type LibraryContextValue = {
   renameTag: (id: string, name: string) => void;
   deleteTag: (id: string) => void;
   rateCard: (id: string, rating: Rating) => void;
+  replaceLibrary: (library: Library) => void;
+  mergeLibrary: (library: Library) => void;
 };
 
 const LibraryContext = createContext<LibraryContextValue | null>(null);
-
-function isTag(value: unknown): value is Tag {
-  if (!value || typeof value !== "object") return false;
-  const tag = value as Tag;
-  return typeof tag.id === "string" && typeof tag.name === "string" && typeof tag.color === "string";
-}
-
-function isCardState(value: unknown): value is Card["state"] {
-  return value === "new" || value === "learning" || value === "review";
-}
-
-function coerceCard(value: unknown): Card | null {
-  if (!value || typeof value !== "object") return null;
-  const raw = value as Partial<Card>;
-  if (
-    typeof raw.id !== "string" ||
-    typeof raw.word !== "string" ||
-    typeof raw.pronunciation !== "string" ||
-    typeof raw.translation !== "string" ||
-    !Array.isArray(raw.tagIds) ||
-    !raw.tagIds.every((id) => typeof id === "string") ||
-    !isCardState(raw.state) ||
-    typeof raw.dueAt !== "number"
-  ) {
-    return null;
-  }
-
-  return normalizeCard({
-    id: raw.id,
-    word: raw.word,
-    pronunciation: raw.pronunciation,
-    translation: raw.translation,
-    tagIds: raw.tagIds,
-    state: raw.state,
-    dueAt: raw.dueAt,
-    intervalDays: typeof raw.intervalDays === "number" ? raw.intervalDays : 0,
-    ease: typeof raw.ease === "number" ? raw.ease : 2.5,
-    repetitions: typeof raw.repetitions === "number" ? raw.repetitions : 0,
-    lapses: typeof raw.lapses === "number" ? raw.lapses : 0,
-    learningStep: typeof raw.learningStep === "number" ? raw.learningStep : 0,
-  });
-}
-
-function isLibrary(value: unknown): value is Library {
-  if (!value || typeof value !== "object") return false;
-  const library = value as { tags?: unknown; cards?: unknown };
-  if (!Array.isArray(library.tags) || !Array.isArray(library.cards)) return false;
-  if (!library.tags.every(isTag)) return false;
-  return library.cards.every((card) => coerceCard(card) !== null);
-}
-
-function parseLibrary(value: unknown): Library | null {
-  if (!isLibrary(value)) return null;
-  return {
-    tags: value.tags,
-    cards: value.cards.map((card) => coerceCard(card)!),
-  };
-}
 
 function uid(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -230,6 +175,20 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const replaceLibrary = useCallback((next: Library) => {
+    libraryRef.current = next;
+    setLibrary(next);
+  }, []);
+
+  const mergeLibrary = useCallback((incoming: Library) => {
+    setLibrary((current) => {
+      if (!current) return current;
+      const next = mergeLibraries(current, incoming);
+      libraryRef.current = next;
+      return next;
+    });
+  }, []);
+
   const value = useMemo<LibraryContextValue>(
     () => ({
       ready: library !== null,
@@ -242,8 +201,10 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       renameTag,
       deleteTag,
       rateCard,
+      replaceLibrary,
+      mergeLibrary,
     }),
-    [library, addCard, updateCard, deleteCard, addTag, renameTag, deleteTag, rateCard],
+    [library, addCard, updateCard, deleteCard, addTag, renameTag, deleteTag, rateCard, replaceLibrary, mergeLibrary],
   );
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;

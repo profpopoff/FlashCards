@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet, View } from "react-native";
 
+import { StudyRemindersProvider } from "@/components/study-reminders";
 import { ThemeProvider, useTheme, useThemedStyles } from "@/components/theme-provider";
 import { Palette } from "@/constants/theme";
 import { LibraryProvider, useLibrary } from "@/data/store";
@@ -10,7 +11,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <LibraryProvider>
-        <ThemedShell />
+        <StudyRemindersProvider>
+          <ThemedShell />
+        </StudyRemindersProvider>
       </LibraryProvider>
     </ThemeProvider>
   );
