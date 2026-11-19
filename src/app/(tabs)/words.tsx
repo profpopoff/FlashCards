@@ -96,12 +96,18 @@ export default function WordsScreen() {
         </View>
 
         {tags.length > 0 ? (
-          <View style={styles.filters}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            style={styles.filters}
+            contentContainerStyle={styles.filtersContent}
+          >
             <FilterChip label="All" selected={selected === "all"} bordered onPress={() => setTagId("all")} />
             {tags.map((tag) => (
               <FilterChip key={tag.id} label={tag.name} selected={selected === tag.id} bordered onPress={() => setTagId(tag.id)} />
             ))}
-          </View>
+          </ScrollView>
         ) : null}
       </View>
 
@@ -468,10 +474,14 @@ const makeStyles = (colors: Palette) =>
     paddingVertical: 12,
   },
   filters: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
     marginTop: 14,
+    marginHorizontal: -20,
+  },
+  filtersContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 20,
   },
   table: {
     flex: 1,
