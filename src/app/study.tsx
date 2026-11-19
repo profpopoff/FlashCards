@@ -1,17 +1,19 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { BlurTargetView, BlurView } from "expo-blur";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useRef, useState, type ComponentRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Screen } from "@/components/screen";
-import { Pronunciation, TagPill } from "@/components/tag-pill";
+import { TagPill } from "@/components/tag-pill";
 import { useTheme, useThemedStyles } from "@/components/theme-provider";
-import { Palette } from "@/constants/theme";
+import { Palette, tagAppearance } from "@/constants/theme";
 import { dueCards, previewInterval, RATINGS } from "@/data/schedule";
 import { useLibrary } from "@/data/store";
 import { Card, Rating, Tag } from "@/data/types";
 
 type Side = "word" | "translation";
+type Mode = Side | "random";
 
 export default function StudyScreen() {
   const { colors } = useTheme();
@@ -21,16 +23,18 @@ export default function StudyScreen() {
   const { cards, tags, rateCard } = useLibrary();
   const [session, setSession] = useState(() => ({
     tag,
-    ids: dueCards(cards, tag).map((card) => card.id),
+    ids: shuffle(dueCards(cards, tag).map((card) => card.id)),
   }));
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
-  const [side, setSide] = useState<Side>("word");
+  const [mode, setMode] = useState<Mode>("word");
+  const [randomSide, setRandomSide] = useState<Side>(pickSide);
 
   if (session.tag !== tag) {
-    setSession({ tag, ids: dueCards(cards, tag).map((card) => card.id) });
+    setSession({ tag, ids: shuffle(dueCards(cards, tag).map((card) => card.id)) });
     setIndex(0);
     setRevealed(false);
+    setRandomSide(pickSide());
   }
 
   const queue = session.ids;
@@ -67,15 +71,18 @@ export default function StudyScreen() {
 
   const currentCard = card;
   const progress = (index + 1) / queue.length;
+  const side: Side = mode === "random" ? randomSide : mode;
 
-  function chooseSide(next: Side) {
-    setSide(next);
+  function chooseMode(next: Mode) {
+    if (next === "random" && mode !== "random") setRandomSide(pickSide());
+    setMode(next);
     setRevealed(false);
   }
 
   function rate(rating: Rating) {
     rateCard(currentCard.id, rating);
     setRevealed(false);
+    setRandomSide(pickSide());
     setIndex((current) => current + 1);
   }
 
@@ -94,8 +101,9 @@ export default function StudyScreen() {
       </View>
 
       <View style={styles.segment}>
-        <SegmentButton label="Word first" selected={side === "word"} onPress={() => chooseSide("word")} />
-        <SegmentButton label="Translation first" selected={side === "translation"} onPress={() => chooseSide("translation")} />
+        <SegmentButton label="Word first" selected={mode === "word"} onPress={() => chooseMode("word")} />
+        <SegmentButton label="Random" selected={mode === "random"} onPress={() => chooseMode("random")} />
+        <SegmentButton label="Translation first" selected={mode === "translation"} onPress={() => chooseMode("translation")} />
       </View>
 
       <View style={styles.card}>
@@ -136,12 +144,15 @@ function SegmentButton({ label, selected, onPress }: { label: string; selected: 
   const styles = useThemedStyles(makeStyles);
   return (
     <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress} style={[styles.segmentItem, selected && styles.segmentItemOn]}>
-      <Text style={[styles.segmentLabel, selected && styles.segmentLabelOn]}>{label}</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.segmentLabel, selected && styles.segmentLabelOn]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
 function StudyFace({ card, tags, side, revealed }: { card: Card; tags: Tag[]; side: Side; revealed: boolean }) {
+  const { colors, scheme } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const cardTags = tags.filter((tag) => card.tagIds.includes(tag.id));
 
@@ -151,7 +162,7 @@ function StudyFace({ card, tags, side, revealed }: { card: Card; tags: Tag[]; si
         <>
           {revealed ? null : <Text style={styles.eyebrow}>Word</Text>}
           <Text style={styles.word}>{card.word}</Text>
-          <Pronunciation value={card.pronunciation} centered />
+          <PronunciationSpoiler key={`${card.id}-${side}`} value={card.pronunciation} revealed={revealed} />
           {revealed ? (
             <>
               <View style={styles.divider} />
@@ -166,7 +177,7 @@ function StudyFace({ card, tags, side, revealed }: { card: Card; tags: Tag[]; si
           <View style={styles.divider} />
           <Text style={styles.eyebrow}>Word</Text>
           <Text style={styles.answer}>{card.word}</Text>
-          <Pronunciation value={card.pronunciation} centered />
+          <PronunciationSpoiler key={`${card.id}-${side}`} value={card.pronunciation} revealed={revealed} />
         </>
       ) : (
         <>
@@ -174,13 +185,75 @@ function StudyFace({ card, tags, side, revealed }: { card: Card; tags: Tag[]; si
           <Text style={styles.word}>{card.translation}</Text>
         </>
       )}
-      <View style={styles.pills}>
-        {cardTags.map((tag) => (
-          <TagPill key={tag.id} name={tag.name} color={tag.color} />
-        ))}
-      </View>
+      {cardTags.length === 0 ? null : revealed ? (
+        <View style={styles.pills}>
+          {cardTags.map((tag) => (
+            <TagPill key={tag.id} name={tag.name} color={tag.color} />
+          ))}
+        </View>
+      ) : (
+        <View style={styles.dots} accessibilityLabel={`${cardTags.length} ${cardTags.length === 1 ? "tag" : "tags"}`}>
+          {cardTags.map((tag) => (
+            <View
+              key={tag.id}
+              style={[styles.dot, { backgroundColor: tagAppearance(tag.color, scheme, colors.surface).color }]}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
+}
+
+function PronunciationSpoiler({ value, revealed }: { value: string; revealed: boolean }) {
+  const styles = useThemedStyles(makeStyles);
+  const targetRef = useRef<ComponentRef<typeof View>>(null);
+  const [shown, setShown] = useState(false);
+  const text = value.trim();
+  if (!text) return null;
+  const visible = shown || revealed;
+
+  if (visible) {
+    return (
+      <View style={styles.spoiler}>
+        <View style={styles.spoilerTarget}>
+          <Text style={styles.spoilerText}>{text}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Show pronunciation" onPress={() => setShown(true)} style={styles.spoiler}>
+      <BlurTargetView ref={targetRef} collapsable={false} style={styles.spoilerTarget}>
+        <Text style={styles.spoilerText} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {text}
+        </Text>
+      </BlurTargetView>
+      <BlurView
+        blurTarget={targetRef}
+        intensity={70}
+        blurMethod="dimezisBlurView"
+        pointerEvents="none"
+        style={styles.spoilerBlur}
+      />
+    </Pressable>
+  );
+}
+
+function pickSide(): Side {
+  return Math.random() < 0.5 ? "word" : "translation";
+}
+
+function shuffle(ids: string[]) {
+  const next = [...ids];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    const current = next[index];
+    next[index] = next[swap];
+    next[swap] = current;
+  }
+  return next;
 }
 
 function ratingColor(colors: Palette, rating: Rating) {
@@ -236,16 +309,20 @@ const makeStyles = (colors: Palette) =>
   segmentItem: {
     flex: 1,
     alignItems: "center",
+    justifyContent: "center",
     borderRadius: 11,
     paddingVertical: 10,
+    paddingHorizontal: 4,
   },
   segmentItemOn: {
     backgroundColor: colors.segmentActive,
   },
   segmentLabel: {
+    width: "100%",
     color: colors.muted,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
+    textAlign: "center",
   },
   segmentLabelOn: {
     color: colors.ink,
@@ -307,6 +384,41 @@ const makeStyles = (colors: Palette) =>
     justifyContent: "center",
     gap: 8,
     marginTop: 16,
+  },
+  dots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 16,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  spoiler: {
+    marginTop: 8,
+    borderRadius: 12,
+    overflow: "hidden",
+    alignSelf: "center",
+  },
+  spoilerTarget: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  spoilerText: {
+    color: colors.muted,
+    fontSize: 16,
+    lineHeight: 22,
+    fontStyle: "italic",
+    textAlign: "center",
+  },
+  spoilerBlur: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   question: {
     textAlign: "center",
