@@ -1,4 +1,3 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMemo, useState } from "react";
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -77,7 +76,7 @@ export default function TagsScreen() {
           placeholderTextColor={colors.placeholder}
           autoCapitalize="words"
           onSubmitEditing={commit}
-          style={styles.input}
+          style={[styles.input, styles.createInput]}
           accessibilityLabel="New tag name"
         />
         <Pressable
@@ -101,27 +100,18 @@ export default function TagsScreen() {
       ) : (
         <View style={styles.list}>
           {tags.map((tag, index) => (
-            <View key={tag.id} style={[styles.row, index < tags.length - 1 && styles.rowBorder]}>
+            <Pressable
+              key={tag.id}
+              accessibilityRole="button"
+              accessibilityLabel={tag.name}
+              accessibilityHint="Opens rename and delete"
+              onLongPress={() => openEditor(tag)}
+              style={[styles.row, index < tags.length - 1 && styles.rowBorder]}
+            >
               <View style={[styles.dot, { backgroundColor: tagAppearance(tag.color, scheme, colors.surface).color }]} />
               <Text style={styles.name}>{tag.name}</Text>
               <Text style={styles.count}>{wordCountLabel(counts.get(tag.id) ?? 0)}</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Rename ${tag.name}`}
-                onPress={() => openEditor(tag)}
-                hitSlop={8}
-              >
-                <Ionicons name="pencil" size={18} color={colors.placeholder} />
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Delete ${tag.name}`}
-                onPress={() => confirmDelete(tag)}
-                hitSlop={8}
-              >
-                <Ionicons name="trash-outline" size={18} color={colors.placeholder} />
-              </Pressable>
-            </View>
+            </Pressable>
           ))}
         </View>
       )}
@@ -136,7 +126,7 @@ export default function TagsScreen() {
               onChangeText={setDraft}
               autoCapitalize="words"
               onSubmitEditing={saveRename}
-              style={styles.input}
+              style={styles.sheetInput}
               accessibilityLabel="Tag name"
             />
             <Pressable accessibilityRole="button" onPress={saveRename} style={styles.save}>
@@ -177,13 +167,26 @@ const makeStyles = (colors: Palette) =>
     marginTop: 18,
   },
   input: {
-    flex: 1,
     backgroundColor: colors.surface,
     borderRadius: 16,
     color: colors.ink,
     fontSize: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
+    minHeight: 52,
+  },
+  createInput: {
+    flex: 1,
+  },
+  sheetInput: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    color: colors.ink,
+    fontSize: 17,
+    lineHeight: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 52,
   },
   add: {
     backgroundColor: colors.indigoFill,

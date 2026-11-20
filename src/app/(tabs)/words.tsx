@@ -225,14 +225,17 @@ function WordSheet({
   onDelete: () => void;
   onAddTag: (name: string) => string | null;
 }) {
+  const closeRef = useRef(onClose);
+
   return (
-    <Modal visible={session !== null} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={session !== null} transparent animationType="fade" onRequestClose={() => closeRef.current()}>
       {session ? (
         <WordForm
           key={session.key}
           card={session.card}
           initialTagIds={session.tagIds}
           tags={tags}
+          closeRef={closeRef}
           onClose={onClose}
           onSave={onSave}
           onSaveAnother={onSaveAnother}
@@ -248,6 +251,7 @@ function WordForm({
   card,
   initialTagIds,
   tags,
+  closeRef,
   onClose,
   onSave,
   onSaveAnother,
@@ -257,6 +261,7 @@ function WordForm({
   card: Card | null;
   initialTagIds: string[];
   tags: Tag[];
+  closeRef: { current: () => void };
   onClose: () => void;
   onSave: (input: WordInput) => void;
   onSaveAnother: (input: WordInput) => void;
@@ -274,6 +279,15 @@ function WordForm({
   const [focused, setFocused] = useState<Field | null>(null);
   const [creatingTag, setCreatingTag] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
+  const [pickingTags, setPickingTags] = useState(false);
+  const selectedTags = tags.filter((tag) => tagIds.includes(tag.id));
+
+  useEffect(() => {
+    closeRef.current = () => {
+      if (pickingTags) setPickingTags(false);
+      else onClose();
+    };
+  }, [closeRef, onClose, pickingTags]);
 
   const canSave = word.trim().length > 0 && translation.trim().length > 0;
   const draft = { word, pronunciation, translation, tagIds };
@@ -285,6 +299,7 @@ function WordForm({
     setFocused(null);
     setCreatingTag(false);
     setTagDraft("");
+    setPickingTags(false);
     setPlaceholder((current) => pickWordPlaceholder(current));
   }
 
@@ -316,6 +331,7 @@ function WordForm({
           keyboardDismissMode="interactive"
           automaticallyAdjustKeyboardInsets
           showsVerticalScrollIndicator={false}
+          style={styles.form}
           contentContainerStyle={styles.sheetContent}
         >
           <Text style={styles.fieldLabel}>Word</Text>
@@ -357,46 +373,32 @@ function WordForm({
 
           <Text style={styles.fieldLabel}>Tags</Text>
           <View style={styles.tags}>
-            {tags.map((tag) => {
-              const selected = tagIds.includes(tag.id);
-              return (
-                <Pressable
-                  key={tag.id}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  onPress={() => toggleTag(tag.id)}
-                  style={[styles.tag, selected ? styles.tagSelected : styles.tagIdle]}
-                >
-                  {selected ? <Ionicons name="checkmark" size={14} color={colors.onIndigo} /> : null}
-                  <Text style={[styles.tagLabel, selected && styles.tagLabelSelected]}>{tag.name}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {creatingTag ? (
-            <View style={styles.newTagRow}>
-              <TextInput
-                value={tagDraft}
-                onChangeText={setTagDraft}
-                onFocus={() => setFocused("tag")}
-                onBlur={() => setFocused(null)}
-                placeholder="Tag name"
-                placeholderTextColor={colors.placeholder}
-                autoCapitalize="words"
-                onSubmitEditing={commitTag}
-                style={[styles.input, styles.newTagInput, focused === "tag" && styles.inputFocused]}
-              />
-              <Pressable accessibilityRole="button" onPress={commitTag} style={styles.newTagAdd}>
-                <Text style={styles.newTagAddLabel}>Add</Text>
+            {selectedTags.map((tag) => (
+              <Pressable
+                key={tag.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${tag.name}`}
+                onPress={() => toggleTag(tag.id)}
+                style={[styles.tag, styles.tagSelected]}
+              >
+                <Text style={[styles.tagLabel, styles.tagLabelSelected]}>{tag.name}</Text>
+                <Ionicons name="close" size={14} color={colors.onIndigo} />
               </Pressable>
-            </View>
-          ) : (
-            <Pressable accessibilityRole="button" onPress={() => setCreatingTag(true)} style={styles.newTag}>
-              <Text style={styles.newTagLabel}>+ New tag</Text>
+            ))}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setCreatingTag(false);
+                setPickingTags(true);
+              }}
+              style={styles.addTag}
+            >
+              <Text style={styles.newTagLabel}>Add tag</Text>
             </Pressable>
-          )}
+          </View>
+        </ScrollView>
 
+        <View style={styles.actions}>
           <Pressable
             accessibilityRole="button"
             disabled={!canSave}
@@ -423,8 +425,69 @@ function WordForm({
               <Text style={styles.deleteLabel}>Delete word</Text>
             </Pressable>
           )}
-        </ScrollView>
+        </View>
       </View>
+      {pickingTags ? (
+        <View style={styles.pickerLayer}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close tags" style={styles.pickerScrim} onPress={() => setPickingTags(false)} />
+          <View style={styles.pickerSheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Tags</Text>
+              <Pressable accessibilityRole="button" onPress={() => setPickingTags(false)} hitSlop={8}>
+                <Text style={styles.cancel}>Done</Text>
+              </Pressable>
+            </View>
+            {tags.length === 0 ? (
+              <Text style={styles.pickerEmpty}>No tags yet.</Text>
+            ) : (
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                style={styles.tagScroll}
+                contentContainerStyle={styles.tagScrollContent}
+              >
+                {tags.map((tag) => {
+                  const selected = tagIds.includes(tag.id);
+                  return (
+                    <Pressable
+                      key={tag.id}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      onPress={() => toggleTag(tag.id)}
+                      style={[styles.tag, selected ? styles.tagSelected : styles.tagIdle]}
+                    >
+                      {selected ? <Ionicons name="checkmark" size={14} color={colors.onIndigo} /> : null}
+                      <Text style={[styles.tagLabel, selected && styles.tagLabelSelected]}>{tag.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+            {creatingTag ? (
+              <View style={styles.newTagRow}>
+                <TextInput
+                  value={tagDraft}
+                  onChangeText={setTagDraft}
+                  onFocus={() => setFocused("tag")}
+                  onBlur={() => setFocused(null)}
+                  placeholder="Tag name"
+                  placeholderTextColor={colors.placeholder}
+                  autoCapitalize="words"
+                  onSubmitEditing={commitTag}
+                  style={[styles.input, styles.newTagInput, focused === "tag" && styles.inputFocused]}
+                />
+                <Pressable accessibilityRole="button" onPress={commitTag} style={styles.newTagAdd}>
+                  <Text style={styles.newTagAddLabel}>Add</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable accessibilityRole="button" onPress={() => setCreatingTag(true)} style={styles.newTag}>
+                <Text style={styles.newTagLabel}>+ New tag</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      ) : null}
     </KeyboardAvoidingView>
   );
 }
@@ -595,12 +658,18 @@ const makeStyles = (colors: Palette) =>
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 18,
-    paddingBottom: 8,
     gap: 8,
   },
+  form: {
+    flexShrink: 1,
+  },
   sheetContent: {
-    paddingBottom: 28,
+    paddingBottom: 12,
     flexGrow: 1,
+  },
+  actions: {
+    paddingTop: 4,
+    paddingBottom: 12,
   },
   sheetHeader: {
     flexDirection: "row",
@@ -643,6 +712,49 @@ const makeStyles = (colors: Palette) =>
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+  },
+  addTag: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.dashed,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  tagScroll: {
+    maxHeight: 280,
+    flexGrow: 0,
+  },
+  tagScrollContent: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  pickerLayer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    justifyContent: "flex-end",
+  },
+  pickerScrim: {
+    flex: 1,
+    backgroundColor: colors.backdrop,
+  },
+  pickerSheet: {
+    maxHeight: "80%",
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 24,
+    gap: 14,
+  },
+  pickerEmpty: {
+    color: colors.muted,
+    fontSize: 15,
   },
   tag: {
     flexDirection: "row",
@@ -704,7 +816,6 @@ const makeStyles = (colors: Palette) =>
     fontWeight: "700",
   },
   save: {
-    marginTop: 12,
     backgroundColor: colors.indigoFill,
     borderRadius: 18,
     alignItems: "center",
