@@ -21,6 +21,8 @@ export function Screen({ children, scroll = false, edges = ["top"], contentStyle
         <ScrollView
           contentContainerStyle={[styles.scrollContent, contentStyle]}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
           showsVerticalScrollIndicator={false}
         >
           {children}

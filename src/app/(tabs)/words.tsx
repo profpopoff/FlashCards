@@ -298,7 +298,7 @@ function WordForm({
   }
 
   return (
-    <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={styles.backdrop} behavior="padding" keyboardVerticalOffset={Platform.OS === "android" ? 0 : 8}>
       <Pressable style={styles.backdropPress} onPress={onClose} />
       <View style={styles.sheet}>
         <View style={styles.sheetHeader}>
@@ -308,86 +308,91 @@ function WordForm({
           </Pressable>
         </View>
 
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <Text style={styles.fieldLabel}>Word</Text>
-            <TextInput
-              value={word}
-              onChangeText={setWord}
-              onFocus={() => setFocused("word")}
-              onBlur={() => setFocused(null)}
-              placeholder={creating ? "serendipity" : undefined}
-              placeholderTextColor={colors.placeholder}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={[styles.input, focused === "word" && styles.inputFocused]}
-            />
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.sheetContent}
+        >
+          <Text style={styles.fieldLabel}>Word</Text>
+          <TextInput
+            value={word}
+            onChangeText={setWord}
+            onFocus={() => setFocused("word")}
+            onBlur={() => setFocused(null)}
+            placeholder={creating ? "serendipity" : undefined}
+            placeholderTextColor={colors.placeholder}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[styles.input, focused === "word" && styles.inputFocused]}
+          />
 
-            <Text style={styles.fieldLabel}>Pronunciation</Text>
-            <TextInput
-              value={pronunciation}
-              onChangeText={setPronunciation}
-              onFocus={() => setFocused("pronunciation")}
-              onBlur={() => setFocused(null)}
-              placeholder={creating ? "/ˌserənˈdɪpəti/" : undefined}
-              placeholderTextColor={colors.placeholder}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={[styles.input, focused === "pronunciation" && styles.inputFocused]}
-            />
+          <Text style={styles.fieldLabel}>Pronunciation</Text>
+          <TextInput
+            value={pronunciation}
+            onChangeText={setPronunciation}
+            onFocus={() => setFocused("pronunciation")}
+            onBlur={() => setFocused(null)}
+            placeholder={creating ? "/ˌserənˈdɪpəti/" : undefined}
+            placeholderTextColor={colors.placeholder}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[styles.input, focused === "pronunciation" && styles.inputFocused]}
+          />
 
-            <Text style={styles.fieldLabel}>Translation</Text>
-            <TextInput
-              value={translation}
-              onChangeText={setTranslation}
-              onFocus={() => setFocused("translation")}
-              onBlur={() => setFocused(null)}
-              placeholder={creating ? "Type the translation" : undefined}
-              placeholderTextColor={colors.placeholder}
-              style={[styles.input, focused === "translation" && styles.inputFocused]}
-            />
+          <Text style={styles.fieldLabel}>Translation</Text>
+          <TextInput
+            value={translation}
+            onChangeText={setTranslation}
+            onFocus={() => setFocused("translation")}
+            onBlur={() => setFocused(null)}
+            placeholder={creating ? "Type the translation" : undefined}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, focused === "translation" && styles.inputFocused]}
+          />
 
-            <Text style={styles.fieldLabel}>Tags</Text>
-            <View style={styles.tags}>
-              {tags.map((tag) => {
-                const selected = tagIds.includes(tag.id);
-                return (
-                  <Pressable
-                    key={tag.id}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => toggleTag(tag.id)}
-                    style={[styles.tag, selected ? styles.tagSelected : styles.tagIdle]}
-                  >
-                    {selected ? <Ionicons name="checkmark" size={14} color={colors.onIndigo} /> : null}
-                    <Text style={[styles.tagLabel, selected && styles.tagLabelSelected]}>{tag.name}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {creatingTag ? (
-              <View style={styles.newTagRow}>
-                <TextInput
-                  value={tagDraft}
-                  onChangeText={setTagDraft}
-                  onFocus={() => setFocused("tag")}
-                  onBlur={() => setFocused(null)}
-                  placeholder="Tag name"
-                  placeholderTextColor={colors.placeholder}
-                  autoCapitalize="words"
-                  onSubmitEditing={commitTag}
-                  style={[styles.input, styles.newTagInput, focused === "tag" && styles.inputFocused]}
-                />
-                <Pressable accessibilityRole="button" onPress={commitTag} style={styles.newTagAdd}>
-                  <Text style={styles.newTagAddLabel}>Add</Text>
+          <Text style={styles.fieldLabel}>Tags</Text>
+          <View style={styles.tags}>
+            {tags.map((tag) => {
+              const selected = tagIds.includes(tag.id);
+              return (
+                <Pressable
+                  key={tag.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => toggleTag(tag.id)}
+                  style={[styles.tag, selected ? styles.tagSelected : styles.tagIdle]}
+                >
+                  {selected ? <Ionicons name="checkmark" size={14} color={colors.onIndigo} /> : null}
+                  <Text style={[styles.tagLabel, selected && styles.tagLabelSelected]}>{tag.name}</Text>
                 </Pressable>
-              </View>
-            ) : (
-              <Pressable accessibilityRole="button" onPress={() => setCreatingTag(true)} style={styles.newTag}>
-                <Text style={styles.newTagLabel}>+ New tag</Text>
+              );
+            })}
+          </View>
+
+          {creatingTag ? (
+            <View style={styles.newTagRow}>
+              <TextInput
+                value={tagDraft}
+                onChangeText={setTagDraft}
+                onFocus={() => setFocused("tag")}
+                onBlur={() => setFocused(null)}
+                placeholder="Tag name"
+                placeholderTextColor={colors.placeholder}
+                autoCapitalize="words"
+                onSubmitEditing={commitTag}
+                style={[styles.input, styles.newTagInput, focused === "tag" && styles.inputFocused]}
+              />
+              <Pressable accessibilityRole="button" onPress={commitTag} style={styles.newTagAdd}>
+                <Text style={styles.newTagAddLabel}>Add</Text>
               </Pressable>
-            )}
-          </ScrollView>
+            </View>
+          ) : (
+            <Pressable accessibilityRole="button" onPress={() => setCreatingTag(true)} style={styles.newTag}>
+              <Text style={styles.newTagLabel}>+ New tag</Text>
+            </Pressable>
+          )}
 
           <Pressable
             accessibilityRole="button"
@@ -415,8 +420,9 @@ function WordForm({
               <Text style={styles.deleteLabel}>Delete word</Text>
             </Pressable>
           )}
-        </View>
-      </KeyboardAvoidingView>
+        </ScrollView>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -586,8 +592,12 @@ const makeStyles = (colors: Palette) =>
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 18,
-    paddingBottom: 20,
+    paddingBottom: 8,
     gap: 8,
+  },
+  sheetContent: {
+    paddingBottom: 28,
+    flexGrow: 1,
   },
   sheetHeader: {
     flexDirection: "row",

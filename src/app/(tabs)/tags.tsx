@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMemo, useState } from "react";
-import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Screen } from "@/components/screen";
 import { useTheme, useThemedStyles } from "@/components/theme-provider";
@@ -127,8 +127,9 @@ export default function TagsScreen() {
       )}
 
       <Modal visible={editing !== null} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setEditing(null)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+        <KeyboardAvoidingView style={styles.backdrop} behavior="padding" keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}>
+          <Pressable style={styles.backdropFill} onPress={() => setEditing(null)} />
+          <View style={styles.sheet}>
             <Text style={styles.sheetTitle}>Rename tag</Text>
             <TextInput
               value={draft}
@@ -146,8 +147,8 @@ export default function TagsScreen() {
                 <Text style={styles.deleteLabel}>Delete tag</Text>
               </Pressable>
             ) : null}
-          </Pressable>
-        </Pressable>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </Screen>
   );
@@ -249,6 +250,13 @@ const makeStyles = (colors: Palette) =>
     backgroundColor: colors.backdrop,
     justifyContent: "center",
     padding: 24,
+  },
+  backdropFill: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   sheet: {
     backgroundColor: colors.background,
