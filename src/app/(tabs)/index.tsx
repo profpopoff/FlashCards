@@ -28,14 +28,6 @@ export default function StudyHomeScreen() {
     .map((tag) => ({ tag, count: dueCards(cards, tag.id).length }))
     .filter((item) => item.count > 0 || item.tag.id === selected);
 
-  const heroMeta = isEmptyLibrary
-    ? "Add words to begin"
-    : counts.total === 0
-      ? "All caught up"
-      : isCapped
-        ? `studying ${sessionCount} of ${counts.total} · about ${minutes} min`
-        : `words · about ${minutes} min`;
-
   return (
     <Screen scroll contentStyle={styles.scroll}>
       <Text style={styles.date}>{formatStudyDate()}</Text>
@@ -47,7 +39,20 @@ export default function StudyHomeScreen() {
             <Text style={styles.heroLabel}>{isEmptyLibrary ? "Your library" : "Due today"}</Text>
             <Text style={styles.heroCount}>{counts.total}</Text>
           </View>
-          <Text style={styles.heroMeta}>{heroMeta}</Text>
+          <View style={styles.heroMetaBlock}>
+            {isEmptyLibrary ? (
+              <Text style={styles.heroMeta}>Add words to begin</Text>
+            ) : counts.total === 0 ? (
+              <Text style={styles.heroMeta}>All caught up</Text>
+            ) : isCapped ? (
+              <>
+                <Text style={styles.heroMeta}>studying {sessionCount} of {counts.total}</Text>
+                <Text style={styles.heroMeta}>about {minutes} min</Text>
+              </>
+            ) : (
+              <Text style={styles.heroMeta}>words · about {minutes} min</Text>
+            )}
+          </View>
         </View>
         {isEmptyLibrary ? (
           <Pressable
@@ -156,10 +161,16 @@ const makeStyles = (colors: Palette) =>
     fontWeight: "700",
     letterSpacing: -1.5,
   },
-  heroMeta: {
+  heroMetaBlock: {
+    flexShrink: 1,
     marginBottom: 12,
+    alignItems: "flex-end",
+    gap: 2,
+  },
+  heroMeta: {
     color: "rgba(255,255,255,0.9)",
     fontSize: 15,
+    textAlign: "right",
   },
   start: {
     marginTop: 16,
