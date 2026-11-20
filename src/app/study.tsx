@@ -15,7 +15,6 @@ import { useLibrary } from "@/data/store";
 import { Card, Rating, Tag } from "@/data/types";
 
 type Side = "word" | "translation";
-type Mode = Side | "random";
 type WaitingCard = { id: string; dueAt: number };
 type StudySession = {
   tag: string;
@@ -37,13 +36,10 @@ export default function StudyScreen() {
   const { sessionSize } = useSessionSettings();
   const [session, setSession] = useState(() => startSession(tag, sessionSize, cards));
   const [revealed, setRevealed] = useState(false);
-  const [mode, setMode] = useState<Mode>("word");
-  const [randomSide, setRandomSide] = useState<Side>(pickSide);
 
   if (session.tag !== tag || session.size !== sessionSize) {
     setSession(startSession(tag, sessionSize, cards));
     setRevealed(false);
-    setRandomSide(pickSide());
   }
 
   const reviewedCount = new Set(session.ids).size;
@@ -51,7 +47,7 @@ export default function StudyScreen() {
   if (!session.currentId) {
     return (
       <Screen edges={["top", "bottom"]} contentStyle={styles.doneScreen}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()} style={styles.close}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={leaveStudy} style={styles.close}>
           <Ionicons name="close" size={26} color={colors.ink} />
         </Pressable>
         <View style={styles.doneBody}>
@@ -61,7 +57,7 @@ export default function StudyScreen() {
               ? "This set has no words to review right now."
               : `You reviewed ${reviewedCount} ${reviewedCount === 1 ? "word" : "words"}.`}
           </Text>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.primary}>
+          <Pressable accessibilityRole="button" onPress={leaveStudy} style={styles.primary}>
             <Text style={styles.primaryLabel}>Back to study</Text>
           </Pressable>
         </View>
@@ -82,20 +78,13 @@ export default function StudyScreen() {
   const total = session.ids.length;
   const position = session.passedIds.length;
   const progress = position / total;
-  const side: Side = mode === "random" ? randomSide : mode;
-
-  function chooseMode(next: Mode) {
-    if (next === "random" && mode !== "random") setRandomSide(pickSide());
-    setMode(next);
-    setRevealed(false);
-  }
+  const side = sideFor(currentCard, session.completed);
 
   function rate(rating: Rating) {
     const now = Date.now();
     const next = applyRating(currentCard, rating, now);
     rateCard(currentCard.id, rating);
     setRevealed(false);
-    setRandomSide(pickSide());
     setSession((current) => {
       const advanced = advanceSession(current, currentCard.id, next.state === "learning" ? next.dueAt : null, now);
       const scheduledForLater = next.dueAt - now >= 24 * 60 * 60 * 1000;
@@ -107,7 +96,7 @@ export default function StudyScreen() {
   return (
     <Screen edges={["top", "bottom"]} contentStyle={styles.screen}>
       <View style={styles.topBar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()} hitSlop={8}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={leaveStudy} hitSlop={8}>
           <Ionicons name="close" size={26} color={colors.ink} />
         </Pressable>
         <View style={styles.track}>
@@ -116,12 +105,6 @@ export default function StudyScreen() {
         <Text style={styles.count}>
           {position} / {total}
         </Text>
-      </View>
-
-      <View style={styles.segment}>
-        <SegmentButton label="Word first" selected={mode === "word"} onPress={() => chooseMode("word")} />
-        <SegmentButton label="Random" selected={mode === "random"} onPress={() => chooseMode("random")} />
-        <SegmentButton label="Translation first" selected={mode === "translation"} onPress={() => chooseMode("translation")} />
       </View>
 
       <View style={styles.card}>
@@ -155,17 +138,6 @@ export default function StudyScreen() {
         </Pressable>
       )}
     </Screen>
-  );
-}
-
-function SegmentButton({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress} style={[styles.segmentItem, selected && styles.segmentItemOn]}>
-      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.segmentLabel, selected && styles.segmentLabelOn]}>
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -259,6 +231,11 @@ function PronunciationSpoiler({ value, revealed }: { value: string; revealed: bo
   );
 }
 
+function leaveStudy() {
+  if (router.canGoBack()) router.back();
+  else router.replace("/");
+}
+
 function startSession(tag: string, size: SessionSize, cards: Card[]): StudySession {
   const ids = limitSessionIds(shuffle(dueCards(cards, tag).map((card) => card.id)), size);
   return {
@@ -309,8 +286,13 @@ function advanceSession(session: StudySession, cardId: string, dueAt: number | n
   };
 }
 
-function pickSide(): Side {
-  return Math.random() < 0.5 ? "word" : "translation";
+function sideFor(card: Card, appearance: number): Side {
+  if (card.state !== "review") return "word";
+  let hash = appearance + 1;
+  for (let index = 0; index < card.id.length; index += 1) {
+    hash = (hash * 33 + card.id.charCodeAt(index)) >>> 0;
+  }
+  return hash % 2 === 0 ? "word" : "translation";
 }
 
 function shuffle(ids: string[]) {
@@ -367,34 +349,6 @@ const makeStyles = (colors: Palette) =>
     color: colors.muted,
     fontSize: 15,
     fontVariant: ["tabular-nums"],
-  },
-  segment: {
-    flexDirection: "row",
-    backgroundColor: colors.segment,
-    borderRadius: 14,
-    padding: 4,
-  },
-  segmentItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 11,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-  },
-  segmentItemOn: {
-    backgroundColor: colors.segmentActive,
-  },
-  segmentLabel: {
-    width: "100%",
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  segmentLabelOn: {
-    color: colors.ink,
-    fontWeight: "700",
   },
   card: {
     flex: 1,
