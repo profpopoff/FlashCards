@@ -20,6 +20,7 @@ import { Screen } from "@/components/screen";
 import { Pronunciation, TagPill } from "@/components/tag-pill";
 import { useTheme, useThemedStyles } from "@/components/theme-provider";
 import { Palette } from "@/constants/theme";
+import { pickWordPlaceholder, WordPlaceholder } from "@/data/placeholders";
 import { Card, Tag } from "@/data/types";
 import { useLibrary } from "@/data/store";
 
@@ -265,6 +266,7 @@ function WordForm({
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const creating = card === null;
+  const [placeholder, setPlaceholder] = useState<WordPlaceholder>(() => pickWordPlaceholder());
   const [word, setWord] = useState(card?.word ?? "");
   const [pronunciation, setPronunciation] = useState(card?.pronunciation ?? "");
   const [translation, setTranslation] = useState(card?.translation ?? "");
@@ -283,6 +285,7 @@ function WordForm({
     setFocused(null);
     setCreatingTag(false);
     setTagDraft("");
+    setPlaceholder((current) => pickWordPlaceholder(current));
   }
 
   function toggleTag(id: string) {
@@ -321,7 +324,7 @@ function WordForm({
             onChangeText={setWord}
             onFocus={() => setFocused("word")}
             onBlur={() => setFocused(null)}
-            placeholder={creating ? "serendipity" : undefined}
+            placeholder={creating ? placeholder.word : undefined}
             placeholderTextColor={colors.placeholder}
             autoCapitalize="none"
             autoCorrect={false}
@@ -334,7 +337,7 @@ function WordForm({
             onChangeText={setPronunciation}
             onFocus={() => setFocused("pronunciation")}
             onBlur={() => setFocused(null)}
-            placeholder={creating ? "/ˌserənˈdɪpəti/" : undefined}
+            placeholder={creating ? placeholder.pronunciation : undefined}
             placeholderTextColor={colors.placeholder}
             autoCapitalize="none"
             autoCorrect={false}
@@ -347,7 +350,7 @@ function WordForm({
             onChangeText={setTranslation}
             onFocus={() => setFocused("translation")}
             onBlur={() => setFocused(null)}
-            placeholder={creating ? "Type the translation" : undefined}
+            placeholder={creating ? placeholder.translation : undefined}
             placeholderTextColor={colors.placeholder}
             style={[styles.input, focused === "translation" && styles.inputFocused]}
           />
