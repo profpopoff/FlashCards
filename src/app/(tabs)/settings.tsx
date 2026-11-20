@@ -1,11 +1,28 @@
-import { useState } from "react";
-import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 import { Screen } from "@/components/screen";
+import { useSessionSettings } from "@/components/session-settings";
 import { useStudyReminders } from "@/components/study-reminders";
 import { useTheme, useThemedStyles } from "@/components/theme-provider";
 import { AppearancePreference, Palette } from "@/constants/theme";
 import { ImportPreview, librarySummary } from "@/data/library-io";
+import {
+  clampSessionSize,
+  getLastCustomSessionSize,
+  isCustomSessionSize,
+  SESSION_SIZE_OPTIONS,
+} from "@/data/session-size";
 import { useLibrary } from "@/data/store";
 import { exportLibraryFile, isLibraryTransferSupported, pickLibraryImport } from "@/data/transfer";
 
@@ -19,10 +36,55 @@ export default function SettingsScreen() {
   const { preference, setPreference, colors } = useTheme();
   const { tags, cards, replaceLibrary, mergeLibrary } = useLibrary();
   const reminders = useStudyReminders();
+  const { sessionSize, setSessionSize, ready: sessionReady } = useSessionSettings();
   const styles = useThemedStyles(makeStyles);
   const [busy, setBusy] = useState<"export" | "import" | null>(null);
   const [reminderBusy, setReminderBusy] = useState(false);
+  const [customDraft, setCustomDraft] = useState("");
+  const [customFocused, setCustomFocused] = useState(false);
   const transferSupported = isLibraryTransferSupported();
+  const customSelected = isCustomSessionSize(sessionSize);
+
+  useEffect(() => {
+    if (!sessionReady) return;
+    if (isCustomSessionSize(sessionSize)) {
+      setCustomDraft(String(sessionSize));
+      return;
+    }
+    let active = true;
+    getLastCustomSessionSize().then((value) => {
+      if (active) setCustomDraft(String(value));
+    });
+    return () => {
+      active = false;
+    };
+  }, [sessionReady, sessionSize]);
+
+  async function selectCustom() {
+    if (customSelected) return;
+    const fromDraft = Number(customDraft);
+    const next = clampSessionSize(Number.isFinite(fromDraft) && fromDraft > 0 ? fromDraft : await getLastCustomSessionSize());
+    setCustomDraft(String(next));
+    await setSessionSize(next);
+  }
+
+  function onCustomDraftChange(text: string) {
+    const cleaned = text.replace(/[^0-9]/g, "").slice(0, 3);
+    setCustomDraft(cleaned);
+    const value = Number(cleaned);
+    if (Number.isFinite(value) && value > 0) {
+      void setSessionSize(clampSessionSize(value));
+    }
+  }
+
+  function onCustomBlur() {
+    setCustomFocused(false);
+    const value = Number(customDraft);
+    const fallback = typeof sessionSize === "number" ? sessionSize : 15;
+    const next = clampSessionSize(Number.isFinite(value) && value > 0 ? value : fallback);
+    setCustomDraft(String(next));
+    void setSessionSize(next);
+  }
 
   async function onToggleReminders(next: boolean) {
     if (reminderBusy) return;
@@ -126,6 +188,56 @@ export default function SettingsScreen() {
         })}
       </View>
 
+      <Text style={styles.section}>Study</Text>
+      <Text style={styles.sectionCopy}>Limit how many due words each session includes.</Text>
+      <View accessibilityLabel="Session size" style={styles.segment}>
+        {SESSION_SIZE_OPTIONS.map((option) => {
+          const selected = sessionSize === option.value;
+          return (
+            <Pressable
+              key={option.label}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              disabled={!sessionReady}
+              onPress={() => setSessionSize(option.value)}
+              style={[styles.option, selected && styles.optionOn]}
+            >
+              <Text style={[styles.optionLabel, selected && styles.optionLabelOn]}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {customSelected ? (
+        <View style={[styles.customRow, customFocused && styles.customRowFocused]}>
+          <Text style={styles.customLabel}>Custom</Text>
+          <TextInput
+            accessibilityLabel="Custom session size"
+            value={customDraft}
+            onChangeText={onCustomDraftChange}
+            onFocus={() => setCustomFocused(true)}
+            onBlur={onCustomBlur}
+            keyboardType="number-pad"
+            returnKeyType="done"
+            maxLength={3}
+            selectTextOnFocus
+            placeholder="15"
+            placeholderTextColor={colors.placeholder}
+            style={styles.customInput}
+          />
+        </View>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: false }}
+          disabled={!sessionReady}
+          onPress={selectCustom}
+          style={({ pressed }) => [styles.customRow, pressed && styles.pressed]}
+        >
+          <Text style={styles.customLabel}>Custom</Text>
+          <Text style={styles.customHint}>Set your own</Text>
+        </Pressable>
+      )}
+
       {reminders.supported ? (
         <>
           <Text style={styles.section}>Study reminders</Text>
@@ -219,6 +331,44 @@ const makeStyles = (colors: Palette) =>
     optionLabelOn: {
       color: colors.ink,
       fontWeight: "700",
+    },
+    customRow: {
+      marginTop: 12,
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      borderWidth: 1,
+      borderColor: colors.line,
+    },
+    customRowFocused: {
+      borderColor: colors.indigoFill,
+    },
+    customLabel: {
+      flex: 1,
+      color: colors.ink,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    customHint: {
+      color: colors.muted,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+    customInput: {
+      minWidth: 64,
+      textAlign: "center",
+      color: colors.ink,
+      fontSize: 18,
+      fontWeight: "700",
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      backgroundColor: colors.segment,
     },
     section: {
       marginTop: 32,

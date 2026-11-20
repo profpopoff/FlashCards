@@ -5,10 +5,12 @@ import { useRef, useState, type ComponentRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Screen } from "@/components/screen";
+import { useSessionSettings } from "@/components/session-settings";
 import { TagPill } from "@/components/tag-pill";
 import { useTheme, useThemedStyles } from "@/components/theme-provider";
 import { Palette, tagAppearance } from "@/constants/theme";
 import { dueCards, previewInterval, RATINGS } from "@/data/schedule";
+import { limitSessionIds } from "@/data/session-size";
 import { useLibrary } from "@/data/store";
 import { Card, Rating, Tag } from "@/data/types";
 
@@ -21,17 +23,23 @@ export default function StudyScreen() {
   const params = useLocalSearchParams<{ tag?: string }>();
   const tag = typeof params.tag === "string" ? params.tag : "all";
   const { cards, tags, rateCard } = useLibrary();
+  const { sessionSize } = useSessionSettings();
   const [session, setSession] = useState(() => ({
     tag,
-    ids: shuffle(dueCards(cards, tag).map((card) => card.id)),
+    size: sessionSize,
+    ids: limitSessionIds(shuffle(dueCards(cards, tag).map((card) => card.id)), sessionSize),
   }));
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [mode, setMode] = useState<Mode>("word");
   const [randomSide, setRandomSide] = useState<Side>(pickSide);
 
-  if (session.tag !== tag) {
-    setSession({ tag, ids: shuffle(dueCards(cards, tag).map((card) => card.id)) });
+  if (session.tag !== tag || session.size !== sessionSize) {
+    setSession({
+      tag,
+      size: sessionSize,
+      ids: limitSessionIds(shuffle(dueCards(cards, tag).map((card) => card.id)), sessionSize),
+    });
     setIndex(0);
     setRevealed(false);
     setRandomSide(pickSide());

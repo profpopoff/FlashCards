@@ -4,20 +4,25 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { FilterChip } from "@/components/filter-chip";
 import { Screen } from "@/components/screen";
+import { useSessionSettings } from "@/components/session-settings";
 import { useThemedStyles } from "@/components/theme-provider";
 import { formatStudyDate, Palette } from "@/constants/theme";
 import { countByState, dueCards, estimateMinutes } from "@/data/schedule";
+import { sessionCountFor } from "@/data/session-size";
 import { useLibrary } from "@/data/store";
 
 export default function StudyHomeScreen() {
   const styles = useThemedStyles(makeStyles);
   const { cards, tags } = useLibrary();
+  const { sessionSize } = useSessionSettings();
   const [selectedTag, setSelectedTag] = useState("all");
   const selected = tags.some((tag) => tag.id === selectedTag) ? selectedTag : "all";
   const queue = useMemo(() => dueCards(cards, selected), [cards, selected]);
   const counts = countByState(queue);
-  const minutes = estimateMinutes(counts.total);
+  const sessionCount = sessionCountFor(counts.total, sessionSize);
+  const minutes = estimateMinutes(sessionCount);
   const isEmptyLibrary = cards.length === 0;
+  const isCapped = sessionSize !== null && counts.total > sessionSize;
 
   const chips = tags
     .map((tag) => ({ tag, count: dueCards(cards, tag.id).length }))
@@ -27,7 +32,9 @@ export default function StudyHomeScreen() {
     ? "Add words to begin"
     : counts.total === 0
       ? "All caught up"
-      : `words · about ${minutes} min`;
+      : isCapped
+        ? `studying ${sessionCount} of ${counts.total} · about ${minutes} min`
+        : `words · about ${minutes} min`;
 
   return (
     <Screen scroll contentStyle={styles.scroll}>
