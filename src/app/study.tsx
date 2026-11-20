@@ -9,13 +9,24 @@ import { useSessionSettings } from "@/components/session-settings";
 import { TagPill } from "@/components/tag-pill";
 import { useTheme, useThemedStyles } from "@/components/theme-provider";
 import { Palette, tagAppearance } from "@/constants/theme";
-import { dueCards, previewInterval, RATINGS } from "@/data/schedule";
-import { limitSessionIds } from "@/data/session-size";
+import { applyRating, dueCards, previewInterval, RATINGS } from "@/data/schedule";
+import { limitSessionIds, type SessionSize } from "@/data/session-size";
 import { useLibrary } from "@/data/store";
 import { Card, Rating, Tag } from "@/data/types";
 
 type Side = "word" | "translation";
 type Mode = Side | "random";
+type WaitingCard = { id: string; dueAt: number };
+type StudySession = {
+  tag: string;
+  size: SessionSize;
+  ids: string[];
+  cursor: number;
+  waiting: WaitingCard[];
+  currentId: string | null;
+  completed: number;
+  passedIds: string[];
+};
 
 export default function StudyScreen() {
   const { colors } = useTheme();
@@ -24,41 +35,31 @@ export default function StudyScreen() {
   const tag = typeof params.tag === "string" ? params.tag : "all";
   const { cards, tags, rateCard } = useLibrary();
   const { sessionSize } = useSessionSettings();
-  const [session, setSession] = useState(() => ({
-    tag,
-    size: sessionSize,
-    ids: limitSessionIds(shuffle(dueCards(cards, tag).map((card) => card.id)), sessionSize),
-  }));
-  const [index, setIndex] = useState(0);
+  const [session, setSession] = useState(() => startSession(tag, sessionSize, cards));
   const [revealed, setRevealed] = useState(false);
   const [mode, setMode] = useState<Mode>("word");
   const [randomSide, setRandomSide] = useState<Side>(pickSide);
 
   if (session.tag !== tag || session.size !== sessionSize) {
-    setSession({
-      tag,
-      size: sessionSize,
-      ids: limitSessionIds(shuffle(dueCards(cards, tag).map((card) => card.id)), sessionSize),
-    });
-    setIndex(0);
+    setSession(startSession(tag, sessionSize, cards));
     setRevealed(false);
     setRandomSide(pickSide());
   }
 
-  const queue = session.ids;
+  const reviewedCount = new Set(session.ids).size;
 
-  if (queue.length === 0 || index >= queue.length) {
+  if (!session.currentId) {
     return (
       <Screen edges={["top", "bottom"]} contentStyle={styles.doneScreen}>
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()} style={styles.close}>
           <Ionicons name="close" size={26} color={colors.ink} />
         </Pressable>
         <View style={styles.doneBody}>
-          <Text style={styles.doneTitle}>{queue.length === 0 ? "Nothing due" : "Nice work"}</Text>
+          <Text style={styles.doneTitle}>{session.ids.length === 0 ? "Nothing due" : "Nice work"}</Text>
           <Text style={styles.doneCopy}>
-            {queue.length === 0
+            {session.ids.length === 0
               ? "This set has no words to review right now."
-              : `You reviewed ${queue.length} ${queue.length === 1 ? "word" : "words"}.`}
+              : `You reviewed ${reviewedCount} ${reviewedCount === 1 ? "word" : "words"}.`}
           </Text>
           <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.primary}>
             <Text style={styles.primaryLabel}>Back to study</Text>
@@ -68,7 +69,7 @@ export default function StudyScreen() {
     );
   }
 
-  const card = cards.find((item) => item.id === queue[index]);
+  const card = cards.find((item) => item.id === session.currentId);
   if (!card) {
     return (
       <Screen edges={["top", "bottom"]}>
@@ -78,7 +79,9 @@ export default function StudyScreen() {
   }
 
   const currentCard = card;
-  const progress = (index + 1) / queue.length;
+  const total = session.ids.length;
+  const position = session.passedIds.length;
+  const progress = position / total;
   const side: Side = mode === "random" ? randomSide : mode;
 
   function chooseMode(next: Mode) {
@@ -88,10 +91,17 @@ export default function StudyScreen() {
   }
 
   function rate(rating: Rating) {
+    const now = Date.now();
+    const next = applyRating(currentCard, rating, now);
     rateCard(currentCard.id, rating);
     setRevealed(false);
     setRandomSide(pickSide());
-    setIndex((current) => current + 1);
+    setSession((current) => {
+      const advanced = advanceSession(current, currentCard.id, next.state === "learning" ? next.dueAt : null, now);
+      const scheduledForLater = next.dueAt - now >= 24 * 60 * 60 * 1000;
+      if (!scheduledForLater || advanced.passedIds.includes(currentCard.id)) return advanced;
+      return { ...advanced, passedIds: [...advanced.passedIds, currentCard.id] };
+    });
   }
 
   return (
@@ -104,7 +114,7 @@ export default function StudyScreen() {
           <View style={[styles.fill, { width: `${progress * 100}%` }]} />
         </View>
         <Text style={styles.count}>
-          {index + 1} / {queue.length}
+          {position} / {total}
         </Text>
       </View>
 
@@ -116,7 +126,7 @@ export default function StudyScreen() {
 
       <View style={styles.card}>
         <ScrollView contentContainerStyle={styles.cardContent} showsVerticalScrollIndicator={false}>
-          <StudyFace card={currentCard} tags={tags} side={side} revealed={revealed} />
+          <StudyFace key={`${session.currentId}-${session.completed}`} card={currentCard} tags={tags} side={side} revealed={revealed} />
         </ScrollView>
       </View>
 
@@ -247,6 +257,56 @@ function PronunciationSpoiler({ value, revealed }: { value: string; revealed: bo
       />
     </Pressable>
   );
+}
+
+function startSession(tag: string, size: SessionSize, cards: Card[]): StudySession {
+  const ids = limitSessionIds(shuffle(dueCards(cards, tag).map((card) => card.id)), size);
+  return {
+    tag,
+    size,
+    ids,
+    cursor: ids.length > 0 ? 1 : 0,
+    waiting: [],
+    currentId: ids[0] ?? null,
+    completed: 0,
+    passedIds: [],
+  };
+}
+
+function soonest(waiting: WaitingCard[]) {
+  return waiting.reduce((best, item) => (item.dueAt < best.dueAt ? item : best));
+}
+
+function pickStudyCard(cursor: number, ids: string[], waiting: WaitingCard[], now: number) {
+  const due = waiting.filter((item) => item.dueAt <= now);
+  if (due.length > 0) return { id: soonest(due).id, fromWaiting: true };
+  if (cursor < ids.length) return { id: ids[cursor], fromWaiting: false };
+  if (waiting.length > 0) return { id: soonest(waiting).id, fromWaiting: true };
+  return null;
+}
+
+function advanceSession(session: StudySession, cardId: string, dueAt: number | null, now: number): StudySession {
+  const waiting = session.waiting.filter((item) => item.id !== cardId);
+  if (dueAt !== null) waiting.push({ id: cardId, dueAt });
+  const picked = pickStudyCard(session.cursor, session.ids, waiting, now);
+  if (!picked) {
+    return { ...session, waiting, currentId: null, completed: session.completed + 1 };
+  }
+  if (picked.fromWaiting) {
+    return {
+      ...session,
+      waiting: waiting.filter((item) => item.id !== picked.id),
+      currentId: picked.id,
+      completed: session.completed + 1,
+    };
+  }
+  return {
+    ...session,
+    waiting,
+    currentId: picked.id,
+    cursor: session.cursor + 1,
+    completed: session.completed + 1,
+  };
 }
 
 function pickSide(): Side {
