@@ -6,11 +6,19 @@ import {
   SessionSize,
   setSessionSize as persistSessionSize,
 } from "@/data/session-size";
+import {
+  DEFAULT_STUDY_MODE,
+  getStudyMode,
+  StudyMode,
+  setStudyMode as persistStudyMode,
+} from "@/data/study-mode";
 
 type SessionSettingsContextValue = {
   ready: boolean;
   sessionSize: SessionSize;
   setSessionSize: (size: SessionSize) => Promise<void>;
+  studyMode: StudyMode;
+  setStudyMode: (mode: StudyMode) => Promise<void>;
 };
 
 const SessionSettingsContext = createContext<SessionSettingsContextValue | null>(null);
@@ -18,13 +26,15 @@ const SessionSettingsContext = createContext<SessionSettingsContextValue | null>
 export function SessionSettingsProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [sessionSize, setSessionSizeState] = useState<SessionSize>(DEFAULT_SESSION_SIZE);
+  const [studyMode, setStudyModeState] = useState<StudyMode>(DEFAULT_STUDY_MODE);
 
   useEffect(() => {
     let active = true;
-    getSessionSize()
-      .then((value) => {
+    Promise.all([getSessionSize(), getStudyMode()])
+      .then(([size, mode]) => {
         if (!active) return;
-        setSessionSizeState(value);
+        setSessionSizeState(size);
+        setStudyModeState(mode);
         setReady(true);
       })
       .catch(() => {
@@ -40,13 +50,20 @@ export function SessionSettingsProvider({ children }: { children: ReactNode }) {
     await persistSessionSize(size);
   }, []);
 
+  const setStudyMode = useCallback(async (mode: StudyMode) => {
+    setStudyModeState(mode);
+    await persistStudyMode(mode);
+  }, []);
+
   const value = useMemo(
     () => ({
       ready,
       sessionSize,
       setSessionSize,
+      studyMode,
+      setStudyMode,
     }),
-    [ready, sessionSize, setSessionSize],
+    [ready, sessionSize, setSessionSize, studyMode, setStudyMode],
   );
 
   return <SessionSettingsContext.Provider value={value}>{children}</SessionSettingsContext.Provider>;

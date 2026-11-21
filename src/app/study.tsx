@@ -11,6 +11,7 @@ import { useTheme, useThemedStyles } from "@/components/theme-provider";
 import { Palette, tagAppearance } from "@/constants/theme";
 import { applyRating, dueCards, previewInterval, RATINGS } from "@/data/schedule";
 import { limitSessionIds, type SessionSize } from "@/data/session-size";
+import type { StudyMode } from "@/data/study-mode";
 import { useLibrary } from "@/data/store";
 import { Card, Rating, Tag } from "@/data/types";
 
@@ -33,7 +34,7 @@ export default function StudyScreen() {
   const params = useLocalSearchParams<{ tag?: string }>();
   const tag = typeof params.tag === "string" ? params.tag : "all";
   const { cards, tags, rateCard } = useLibrary();
-  const { sessionSize } = useSessionSettings();
+  const { sessionSize, studyMode } = useSessionSettings();
   const [session, setSession] = useState(() => startSession(tag, sessionSize, cards));
   const [revealed, setRevealed] = useState(false);
 
@@ -78,7 +79,7 @@ export default function StudyScreen() {
   const total = session.ids.length;
   const position = session.passedIds.length;
   const progress = position / total;
-  const side = sideFor(currentCard, session.completed);
+  const side = sideFor(currentCard, session.completed, studyMode);
 
   function rate(rating: Rating) {
     const now = Date.now();
@@ -286,7 +287,9 @@ function advanceSession(session: StudySession, cardId: string, dueAt: number | n
   };
 }
 
-function sideFor(card: Card, appearance: number): Side {
+function sideFor(card: Card, appearance: number, mode: StudyMode): Side {
+  if (mode === "word") return "word";
+  if (mode === "translation") return "translation";
   if (card.state !== "review") return "word";
   let hash = appearance + 1;
   for (let index = 0; index < card.id.length; index += 1) {

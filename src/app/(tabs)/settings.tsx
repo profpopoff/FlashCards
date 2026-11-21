@@ -24,6 +24,7 @@ import {
   SESSION_SIZE_OPTIONS,
 } from "@/data/session-size";
 import { useLibrary } from "@/data/store";
+import { STUDY_MODE_OPTIONS, studyModeCopy } from "@/data/study-mode";
 import { exportLibraryFile, isLibraryTransferSupported, pickLibraryImport } from "@/data/transfer";
 
 const OPTIONS: { id: AppearancePreference; label: string }[] = [
@@ -36,7 +37,7 @@ export default function SettingsScreen() {
   const { preference, setPreference, colors } = useTheme();
   const { tags, cards, replaceLibrary, mergeLibrary } = useLibrary();
   const reminders = useStudyReminders();
-  const { sessionSize, setSessionSize, ready: sessionReady } = useSessionSettings();
+  const { sessionSize, setSessionSize, studyMode, setStudyMode, ready: sessionReady } = useSessionSettings();
   const styles = useThemedStyles(makeStyles);
   const [busy, setBusy] = useState<"export" | "import" | null>(null);
   const [reminderBusy, setReminderBusy] = useState(false);
@@ -188,7 +189,27 @@ export default function SettingsScreen() {
         })}
       </View>
 
-      <Text style={styles.section}>Study</Text>
+      <Text style={styles.section}>Study mode</Text>
+      <View accessibilityLabel="Study mode" style={styles.segment}>
+        {STUDY_MODE_OPTIONS.map((option) => {
+          const selected = studyMode === option.value;
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              disabled={!sessionReady}
+              onPress={() => setStudyMode(option.value)}
+              style={[styles.option, selected && styles.optionOn]}
+            >
+              <Text style={[styles.optionLabel, selected && styles.optionLabelOn]}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.sectionCopy}>{studyModeCopy(studyMode)}</Text>
+
+      <Text style={styles.section}>Session size</Text>
       <Text style={styles.sectionCopy}>Limit how many due words each session includes.</Text>
       <View accessibilityLabel="Session size" style={styles.segment}>
         {SESSION_SIZE_OPTIONS.map((option) => {
@@ -327,6 +348,7 @@ const makeStyles = (colors: Palette) =>
       color: colors.muted,
       fontSize: 15,
       fontWeight: "600",
+      textAlign: "center",
     },
     optionLabelOn: {
       color: colors.ink,
