@@ -368,6 +368,8 @@ function WordForm({
             onBlur={() => setFocused(null)}
             placeholder={creating ? placeholder.translation : undefined}
             placeholderTextColor={colors.placeholder}
+            autoCapitalize="none"
+            autoCorrect={false}
             style={[styles.input, focused === "translation" && styles.inputFocused]}
           />
 

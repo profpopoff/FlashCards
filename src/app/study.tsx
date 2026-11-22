@@ -1,8 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BlurTargetView, BlurView } from "expo-blur";
 import { router, useLocalSearchParams } from "expo-router";
-import { useRef, useState, type ComponentRef } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState, type ComponentRef } from "react";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Screen } from "@/components/screen";
 import { useSessionSettings } from "@/components/session-settings";
@@ -199,35 +199,73 @@ function StudyFace({ card, tags, side, revealed }: { card: Card; tags: Tag[]; si
 function PronunciationSpoiler({ value, revealed }: { value: string; revealed: boolean }) {
   const styles = useThemedStyles(makeStyles);
   const targetRef = useRef<ComponentRef<typeof View>>(null);
+  const textRef = useRef<ComponentRef<typeof Text>>(null);
   const [shown, setShown] = useState(false);
+  const [inkWidth, setInkWidth] = useState(0);
+  const [boxWidth, setBoxWidth] = useState(0);
   const text = value.trim();
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || shown || revealed || !text) return;
+    const node = textRef.current as unknown as HTMLElement | null;
+    if (!node || typeof window === "undefined") return;
+    const style = window.getComputedStyle(node);
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const width = context.measureText(text).width;
+    if (width > 0) setInkWidth((current) => (Math.abs(current - width) < 0.5 ? current : width));
+  }, [revealed, shown, text]);
+
   if (!text) return null;
   const visible = shown || revealed;
 
   if (visible) {
     return (
-      <View style={styles.spoiler}>
-        <View style={styles.spoilerTarget}>
-          <Text style={styles.spoilerText}>{text}</Text>
-        </View>
-      </View>
+      <Text style={styles.spoilerRevealed} textBreakStrategy="simple">
+        {text}
+      </Text>
     );
   }
 
+  const pillWidth = inkWidth > 0 ? Math.min(boxWidth || inkWidth + 24, inkWidth + 24) : 0;
+
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Show pronunciation" onPress={() => setShown(true)} style={styles.spoiler}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Show pronunciation"
+      onPress={() => setShown(true)}
+      style={styles.spoiler}
+      onLayout={(event) => {
+        const width = event.nativeEvent.layout.width;
+        setBoxWidth((current) => (Math.abs(current - width) < 0.5 ? current : width));
+      }}
+    >
       <BlurTargetView ref={targetRef} collapsable={false} style={styles.spoilerTarget}>
-        <Text style={styles.spoilerText} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <Text
+          ref={textRef}
+          style={styles.spoilerText}
+          textBreakStrategy="simple"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          onTextLayout={(event) => {
+            const width = event.nativeEvent.lines.reduce((max, line) => Math.max(max, line.width), 0);
+            setInkWidth((current) => (Math.abs(current - width) < 0.5 ? current : width));
+          }}
+        >
           {text}
         </Text>
       </BlurTargetView>
-      <BlurView
-        blurTarget={targetRef}
-        intensity={70}
-        blurMethod="dimezisBlurView"
-        pointerEvents="none"
-        style={styles.spoilerBlur}
-      />
+      {pillWidth > 0 ? (
+        <BlurView
+          blurTarget={targetRef}
+          intensity={70}
+          blurMethod="dimezisBlurView"
+          pointerEvents="none"
+          style={[styles.spoilerBlur, { width: pillWidth, left: Math.max(0, (boxWidth - pillWidth) / 2) }]}
+        />
+      ) : null}
     </Pressable>
   );
 }
@@ -423,15 +461,26 @@ const makeStyles = (colors: Palette) =>
   },
   spoiler: {
     marginTop: 8,
-    borderRadius: 12,
-    overflow: "hidden",
-    alignSelf: "center",
+    alignSelf: "stretch",
   },
   spoilerTarget: {
+    width: "100%",
     paddingHorizontal: 12,
     paddingVertical: 4,
   },
   spoilerText: {
+    width: "100%",
+    color: colors.muted,
+    fontSize: 16,
+    lineHeight: 22,
+    fontStyle: "italic",
+    textAlign: "center",
+  },
+  spoilerRevealed: {
+    alignSelf: "stretch",
+    width: "100%",
+    marginTop: 8,
+    paddingVertical: 4,
     color: colors.muted,
     fontSize: 16,
     lineHeight: 22,
@@ -441,9 +490,9 @@ const makeStyles = (colors: Palette) =>
   spoilerBlur: {
     position: "absolute",
     top: 0,
-    right: 0,
     bottom: 0,
-    left: 0,
+    borderRadius: 12,
+    overflow: "hidden",
   },
   question: {
     textAlign: "center",
