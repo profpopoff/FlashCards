@@ -20,6 +20,7 @@ type LibraryContextValue = {
   renameTag: (id: string, name: string) => void;
   deleteTag: (id: string) => void;
   rateCard: (id: string, rating: Rating) => void;
+  restoreCard: (card: Card) => void;
   replaceLibrary: (library: Library) => void;
   mergeLibrary: (library: Library) => void;
 };
@@ -175,6 +176,16 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const restoreCard = useCallback((snapshot: Card) => {
+    setLibrary((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        cards: current.cards.map((card) => (card.id === snapshot.id ? snapshot : card)),
+      };
+    });
+  }, []);
+
   const replaceLibrary = useCallback((next: Library) => {
     libraryRef.current = next;
     setLibrary(next);
@@ -201,10 +212,23 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       renameTag,
       deleteTag,
       rateCard,
+      restoreCard,
       replaceLibrary,
       mergeLibrary,
     }),
-    [library, addCard, updateCard, deleteCard, addTag, renameTag, deleteTag, rateCard, replaceLibrary, mergeLibrary],
+    [
+      library,
+      addCard,
+      updateCard,
+      deleteCard,
+      addTag,
+      renameTag,
+      deleteTag,
+      rateCard,
+      restoreCard,
+      replaceLibrary,
+      mergeLibrary,
+    ],
   );
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;

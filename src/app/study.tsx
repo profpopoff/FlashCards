@@ -27,30 +27,53 @@ type StudySession = {
   completed: number;
   passedIds: string[];
 };
+type UndoSnapshot = {
+  card: Card;
+  session: StudySession;
+};
 
 export default function StudyScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const params = useLocalSearchParams<{ tag?: string }>();
   const tag = typeof params.tag === "string" ? params.tag : "all";
-  const { cards, tags, rateCard } = useLibrary();
+  const { cards, tags, rateCard, restoreCard } = useLibrary();
   const { sessionSize, studyMode } = useSessionSettings();
   const [session, setSession] = useState(() => startSession(tag, sessionSize, cards));
   const [revealed, setRevealed] = useState(false);
+  const [undo, setUndo] = useState<UndoSnapshot | null>(null);
 
   if (session.tag !== tag || session.size !== sessionSize) {
     setSession(startSession(tag, sessionSize, cards));
     setRevealed(false);
+    setUndo(null);
   }
 
   const reviewedCount = new Set(session.ids).size;
 
+  function undoLastRating() {
+    if (!undo) return;
+    restoreCard(undo.card);
+    setSession(cloneSession(undo.session));
+    setRevealed(true);
+    setUndo(null);
+  }
+
   if (!session.currentId) {
     return (
       <Screen edges={["top", "bottom"]} contentStyle={styles.doneScreen}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={leaveStudy} style={styles.close}>
-          <Ionicons name="close" size={26} color={colors.ink} />
-        </Pressable>
+        <View style={styles.doneTopBar}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={leaveStudy} hitSlop={8}>
+            <Ionicons name="close" size={26} color={colors.ink} />
+          </Pressable>
+          {undo && session.ids.length > 0 ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Undo last rating" onPress={undoLastRating} hitSlop={8}>
+              <Text style={styles.undoLabel}>Undo</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.undoSpacer} />
+          )}
+        </View>
         <View style={styles.doneBody}>
           <Text style={styles.doneTitle}>{session.ids.length === 0 ? "Nothing due" : "Nice work"}</Text>
           <Text style={styles.doneCopy}>
@@ -84,6 +107,10 @@ export default function StudyScreen() {
   function rate(rating: Rating) {
     const now = Date.now();
     const next = applyRating(currentCard, rating, now);
+    setUndo({
+      card: { ...currentCard, tagIds: [...currentCard.tagIds] },
+      session: cloneSession(session),
+    });
     rateCard(currentCard.id, rating);
     setRevealed(false);
     setSession((current) => {
@@ -103,9 +130,15 @@ export default function StudyScreen() {
         <View style={styles.track}>
           <View style={[styles.fill, { width: `${progress * 100}%` }]} />
         </View>
-        <Text style={styles.count}>
-          {position} / {total}
-        </Text>
+        {undo ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Undo last rating" onPress={undoLastRating} hitSlop={8}>
+            <Text style={styles.undoLabel}>Undo</Text>
+          </Pressable>
+        ) : (
+          <Text style={styles.count}>
+            {position} / {total}
+          </Text>
+        )}
       </View>
 
       <View style={styles.card}>
@@ -275,6 +308,15 @@ function leaveStudy() {
   else router.replace("/");
 }
 
+function cloneSession(session: StudySession): StudySession {
+  return {
+    ...session,
+    ids: [...session.ids],
+    waiting: session.waiting.map((item) => ({ ...item })),
+    passedIds: [...session.passedIds],
+  };
+}
+
 function startSession(tag: string, size: SessionSize, cards: Card[]): StudySession {
   const ids = limitSessionIds(shuffle(dueCards(cards, tag).map((card) => card.id)), size);
   return {
@@ -387,6 +429,21 @@ const makeStyles = (colors: Palette) =>
     color: colors.muted,
     fontSize: 15,
     fontVariant: ["tabular-nums"],
+  },
+  undoLabel: {
+    minWidth: 52,
+    textAlign: "right",
+    color: colors.indigo,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  doneTopBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  undoSpacer: {
+    minWidth: 52,
   },
   card: {
     flex: 1,
