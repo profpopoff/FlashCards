@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -25,6 +27,7 @@ import {
 } from "@/data/session-size";
 import { useLibrary } from "@/data/store";
 import { STUDY_MODE_OPTIONS, studyModeCopy } from "@/data/study-mode";
+import { formatReminderTime } from "@/data/study-reminders";
 import { exportLibraryFile, isLibraryTransferSupported, pickLibraryImport } from "@/data/transfer";
 
 const OPTIONS: { id: AppearancePreference; label: string }[] = [
@@ -41,10 +44,16 @@ export default function SettingsScreen() {
   const styles = useThemedStyles(makeStyles);
   const [busy, setBusy] = useState<"export" | "import" | null>(null);
   const [reminderBusy, setReminderBusy] = useState(false);
+  const [pickingTime, setPickingTime] = useState(false);
   const [customDraft, setCustomDraft] = useState("");
   const [customFocused, setCustomFocused] = useState(false);
   const transferSupported = isLibraryTransferSupported();
   const customSelected = isCustomSessionSize(sessionSize);
+  const reminderDate = useMemo(() => {
+    const date = new Date();
+    date.setHours(reminders.time.hour, reminders.time.minute, 0, 0);
+    return date;
+  }, [reminders.time.hour, reminders.time.minute]);
 
   useEffect(() => {
     if (!sessionReady) return;
@@ -101,6 +110,12 @@ export default function SettingsScreen() {
     } finally {
       setReminderBusy(false);
     }
+  }
+
+  function onReminderTimeChange(event: DateTimePickerEvent, date?: Date) {
+    if (Platform.OS === "android") setPickingTime(false);
+    if (event.type === "dismissed" || !date) return;
+    void reminders.setTime({ hour: date.getHours(), minute: date.getMinutes() });
   }
 
   async function onExport() {
@@ -262,7 +277,9 @@ export default function SettingsScreen() {
       {reminders.supported ? (
         <>
           <Text style={styles.section}>Study reminders</Text>
-          <Text style={styles.sectionCopy}>Get notified when new words become due.</Text>
+          <Text style={styles.sectionCopy}>
+            Daily nudge at your chosen time. If nothing is due, it suggests adding new words.
+          </Text>
           <View style={styles.reminderRow}>
             <Text style={styles.reminderLabel}>Notifications</Text>
             <Switch
@@ -273,6 +290,47 @@ export default function SettingsScreen() {
               thumbColor={colors.heroButton}
             />
           </View>
+          {reminders.enabled ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reminder time"
+              disabled={!reminders.ready}
+              onPress={() => setPickingTime(true)}
+              style={({ pressed }) => [styles.reminderRow, styles.reminderTimeRow, pressed && styles.pressed]}
+            >
+              <Text style={styles.reminderLabel}>Reminder time</Text>
+              <Text style={styles.reminderTimeValue}>{formatReminderTime(reminders.time)}</Text>
+            </Pressable>
+          ) : null}
+          {pickingTime && Platform.OS === "android" ? (
+            <DateTimePicker
+              value={reminderDate}
+              mode="time"
+              display="default"
+              onChange={onReminderTimeChange}
+            />
+          ) : null}
+          {Platform.OS === "ios" ? (
+            <Modal visible={pickingTime} transparent animationType="fade" onRequestClose={() => setPickingTime(false)}>
+              <View style={styles.timeSheetRoot}>
+                <Pressable style={styles.timeSheetBackdrop} onPress={() => setPickingTime(false)} />
+                <View style={styles.timeSheet}>
+                  <View style={styles.timeSheetHeader}>
+                    <Text style={styles.timeSheetTitle}>Reminder time</Text>
+                    <Pressable accessibilityRole="button" onPress={() => setPickingTime(false)} hitSlop={8}>
+                      <Text style={styles.timeSheetDone}>Done</Text>
+                    </Pressable>
+                  </View>
+                  <DateTimePicker
+                    value={reminderDate}
+                    mode="time"
+                    display="spinner"
+                    onChange={onReminderTimeChange}
+                  />
+                </View>
+              </View>
+            </Modal>
+          ) : null}
         </>
       ) : null}
 
@@ -418,11 +476,56 @@ const makeStyles = (colors: Palette) =>
       justifyContent: "space-between",
       gap: 12,
     },
+    reminderTimeRow: {
+      marginTop: 10,
+    },
     reminderLabel: {
       flex: 1,
       color: colors.ink,
       fontSize: 16,
       fontWeight: "600",
+    },
+    reminderTimeValue: {
+      color: colors.indigo,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    timeSheetRoot: {
+      flex: 1,
+      justifyContent: "flex-end",
+    },
+    timeSheetBackdrop: {
+      position: "absolute",
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      backgroundColor: colors.backdrop,
+    },
+    timeSheet: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingBottom: 24,
+      paddingHorizontal: 8,
+    },
+    timeSheetHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: 4,
+    },
+    timeSheetTitle: {
+      color: colors.ink,
+      fontSize: 17,
+      fontWeight: "700",
+    },
+    timeSheetDone: {
+      color: colors.indigo,
+      fontSize: 16,
+      fontWeight: "700",
     },
     actions: {
       marginTop: 16,

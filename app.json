@@ -46,7 +46,8 @@
           "defaultChannel": "study-due",
           "enableRemoteNotifications": false
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
