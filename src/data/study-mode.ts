@@ -15,7 +15,7 @@ export const STUDY_MODE_OPTIONS: { value: StudyMode; label: string }[] = [
 export function studyModeCopy(mode: StudyMode): string {
   if (mode === "word") return "Every card shows the word first.";
   if (mode === "translation") return "Every card shows the translation first.";
-  return "New words stay word first. Later reviews show a random side.";
+  return "New words stay word first. Later reviews alternate word and translation.";
 }
 
 export function parseStudyMode(raw: string | null): StudyMode {

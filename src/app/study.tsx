@@ -79,7 +79,7 @@ export default function StudyScreen() {
   const total = session.ids.length;
   const position = session.passedIds.length;
   const progress = position / total;
-  const side = sideFor(currentCard, session.completed, studyMode);
+  const side = sideFor(currentCard, studyMode);
 
   function rate(rating: Rating) {
     const now = Date.now();
@@ -325,15 +325,12 @@ function advanceSession(session: StudySession, cardId: string, dueAt: number | n
   };
 }
 
-function sideFor(card: Card, appearance: number, mode: StudyMode): Side {
+function sideFor(card: Card, mode: StudyMode): Side {
   if (mode === "word") return "word";
   if (mode === "translation") return "translation";
   if (card.state !== "review") return "word";
-  let hash = appearance + 1;
-  for (let index = 0; index < card.id.length; index += 1) {
-    hash = (hash * 33 + card.id.charCodeAt(index)) >>> 0;
-  }
-  return hash % 2 === 0 ? "word" : "translation";
+  // repetitions starts at 1 on graduation; odd → word, even → translation.
+  return card.repetitions % 2 === 1 ? "word" : "translation";
 }
 
 function shuffle(ids: string[]) {
